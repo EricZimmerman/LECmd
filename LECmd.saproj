@@ -1,0 +1,51 @@
+<SmartAssemblyProject ProjectId="{517f41f1-a5a8-4539-8d8c-95a8cbd33f3c}" Version="2.0">
+    <MainAssemblyFileName>.\LECmd\bin\Release\LECmd.exe</MainAssemblyFileName>
+    <FriendlyName>LECmd</FriendlyName>
+    <CompanyName>Eric Zimmerman saericzimmerman@gmail.com</CompanyName>
+    <Configuration Name="Release">
+        <Options>
+            <ExceptionReporting EmailToBeNotified="mikestammer@gmail.com" ReportExceptions="1" Template="res:{SmartExceptions}.1033.dll" />
+            <FeatureUsageReporting Template="res:SmartUsageWithUIConsentFirstRun1033.dll" />
+            <StringsEncoding />
+            <StrongNameSigning />
+            <OtherOptimizations />
+            <Obfuscation FieldsNameMangling="2" NameMangling="3" />
+            <OtherProtections />
+            <Debugging />
+        </Options>
+        <ApplicationName>LECmd</ApplicationName>
+        <Destination DestinationFileName=".\LECmd\bin\LECmd.exe" />
+        <Assemblies>
+            <Assembly AssemblyName="LECmd, Culture=neutral, PublicKeyToken=null">
+                <Merging>
+                    <ResourcesCompression />
+                    <MemberRefsProxy />
+                    <Pruning />
+                    <Obfuscation />
+                    <ControlFlow />
+                </Merging>
+                <Embedding />
+            </Assembly>
+            <Assembly AssemblyName="NLog, Culture=neutral, PublicKeyToken=5120e14c03d0593c">
+                <Merging />
+                <Embedding Embed="1" />
+            </Assembly>
+            <Assembly AssemblyName="FluentCommandLineParser, Culture=neutral, PublicKeyToken=null">
+                <Merging />
+                <Embedding Embed="1" />
+            </Assembly>
+            <Assembly AssemblyName="Lnk, Culture=neutral, PublicKeyToken=null">
+                <Merging />
+                <Embedding Embed="1" />
+            </Assembly>
+            <Assembly AssemblyName="ExtensionBlocks, Culture=neutral, PublicKeyToken=null">
+                <Merging />
+                <Embedding Embed="1" />
+            </Assembly>
+            <Assembly AssemblyName="ServiceStack.Text, Culture=neutral, PublicKeyToken=null">
+                <Merging />
+                <Embedding Embed="1" />
+            </Assembly>
+        </Assemblies>
+    </Configuration>
+</SmartAssemblyProject>

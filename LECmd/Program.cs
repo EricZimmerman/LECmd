@@ -7,9 +7,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using ExtensionBlocks;
 using Fclp;
 using Fclp.Internals.Extensions;
 using Lnk;
+using Lnk.ExtraData;
 using Microsoft.Win32;
 using NLog;
 using NLog.Config;
@@ -76,8 +78,11 @@ namespace LnkCmd
                 .WithDescription(
                     "When exporting to json, use a more human readable layout").SetDefault(false);
 
-
-
+            _fluentCommandLineParser.Setup(arg => arg.AllFiles)
+    .As("all")
+    .WithDescription(
+        "When true, process all files in directory vs. only files matching *.lnk").SetDefault(false);
+            
             var header =
                $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
                "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
@@ -86,7 +91,7 @@ namespace LnkCmd
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" +
                          //"\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" " + "\r\n\t ";
+                         @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t ";
             //@" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\prefetch_out.csv"" --local" + "\r\n\t " +
             //                         @" PECmd.exe -f ""C:\Temp\someOtherFile.txt"" --lr cc -sa" + "\r\n\t " +
             //                         @" PECmd.exe -f ""C:\Temp\someOtherFile.txt"" --lr cc -sa -m 15 -x 22" + "\r\n\t " +
@@ -148,7 +153,7 @@ namespace LnkCmd
                 {
                     lnk = LoadFile(_fluentCommandLineParser.Object.File);
                 }
-                catch (UnauthorizedAccessException ex)
+                catch (UnauthorizedAccessException)
                 {
                     _logger.Error(
                         $"Unable to access '{_fluentCommandLineParser.Object.File}'. Are you running as an administrator?");
@@ -171,7 +176,13 @@ namespace LnkCmd
 
                 try
                 {
-                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, "*.lnk",
+                    var mask = "*.lnk";
+                    if (_fluentCommandLineParser.Object.AllFiles)
+                    {
+                        mask = "*";
+                    }
+
+                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory ,mask,
                     SearchOption.AllDirectories);
                 }
                 catch (UnauthorizedAccessException)
@@ -197,9 +208,6 @@ namespace LnkCmd
                 }
 
                 sw.Stop();
-
-    
-
 
                 _logger.Info($"Processed {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
             }
@@ -285,62 +293,6 @@ namespace LnkCmd
                 _logger.Info($"  Target accessed: {lnk.Header.TargetModificationDate}");
                 _logger.Info("");
 
-                if (lnk.TargetIDs.Count > 0)
-                {
-                    _logger.Info("");
-                    _logger.Warn("--- Target ID information ---");
-                    foreach (var shellBag in lnk.TargetIDs)
-                    {
-                        _logger.Info($">>{shellBag}");
-                    }
-                }
-
-                if ((lnk.Header.DataFlags & Header.DataFlag.HasLinkInfo) == Header.DataFlag.HasLinkInfo)
-                {
-                    _logger.Info("");
-                    _logger.Warn("--- Link information ---");
-                    _logger.Info($"Location flags: {lnk.LocationFlags}");
-
-                    if (lnk.VolumeInfo != null)
-                    {
-                        _logger.Info("");
-                        _logger.Info(">>Volume information");
-                        _logger.Info($"Drive type: {lnk.VolumeInfo.DriveType}");
-                        _logger.Info($"Serial number: {lnk.VolumeInfo.DriveSerialNumber}");
-
-                        var label = lnk.VolumeInfo.VolumeLabel.Length > 0 ? lnk.VolumeInfo.VolumeLabel : "(No label)";
-
-                        _logger.Info($"Label: {label}");
-                    }
-
-                    if (lnk.LocalPath?.Length > 0)
-                    {
-                        _logger.Info($"Local path: {lnk.LocalPath}");
-                    }
-
-                    if (lnk.NetworkShareInfo != null)
-                    {
-                        _logger.Info("");
-                        _logger.Warn("Network share information");
-
-                        if (lnk.NetworkShareInfo.DeviceName.Length > 0)
-                        {
-                            _logger.Info($"Device name: {lnk.NetworkShareInfo.DeviceName}");
-                        }
-
-                        _logger.Info($"Share name: {lnk.NetworkShareInfo.NetworkShareName}");
-
-                        _logger.Info($"Provider type: {lnk.NetworkShareInfo.NetworkProviderType}");
-                        _logger.Info($"Share flags: {lnk.NetworkShareInfo.ShareFlags}");
-
-                    }
-
-                    if (lnk.CommonPath.Length > 0)
-                    {
-                        _logger.Info($"Common path: {lnk.CommonPath}");
-                    }
-                }
-
                 if ((lnk.Header.DataFlags & Header.DataFlag.HasName) == Header.DataFlag.HasName)
                 {
                     _logger.Info($"Name: {lnk.Name}");
@@ -366,14 +318,192 @@ namespace LnkCmd
                     _logger.Info($"Icon Location: {lnk.IconLocation}");
                 }
 
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasLinkInfo) == Header.DataFlag.HasLinkInfo)
+                {
+                    _logger.Info("");
+                    _logger.Error("--- Link information ---");
+                    _logger.Info($"Flags: {lnk.LocationFlags}");
+
+                    if (lnk.VolumeInfo != null)
+                    {
+                        _logger.Info("");
+                        _logger.Warn(">>Volume information");
+                        _logger.Info($"  Drive type: {GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType)}");
+                        _logger.Info($"  Serial number: {lnk.VolumeInfo.DriveSerialNumber}");
+
+                        var label = lnk.VolumeInfo.VolumeLabel.Length > 0 ? lnk.VolumeInfo.VolumeLabel : "(No label)";
+
+                        _logger.Info($"  Label: {label}");
+                    }
+                    
+                    if (lnk.NetworkShareInfo != null)
+                    {
+                        _logger.Info("");
+                        _logger.Warn("  Network share information");
+
+                        if (lnk.NetworkShareInfo.DeviceName.Length > 0)
+                        {
+                            _logger.Info($"    Device name: {lnk.NetworkShareInfo.DeviceName}");
+                        }
+
+                        _logger.Info($"    Share name: {lnk.NetworkShareInfo.NetworkShareName}");
+
+                        _logger.Info($"    Provider type: {lnk.NetworkShareInfo.NetworkProviderType}");
+                        _logger.Info($"    Share flags: {lnk.NetworkShareInfo.ShareFlags}");
+                        _logger.Info("");
+                    }
+
+                    if (lnk.LocalPath?.Length > 0)
+                    {
+                        _logger.Info($"  Local path: {lnk.LocalPath}");
+                    }
+
+                    if (lnk.CommonPath.Length > 0)
+                    {
+                        _logger.Info($"  Common path: {lnk.CommonPath}");
+                    }
+                    _logger.Info("");
+                }
+
+                if (lnk.TargetIDs.Count > 0)
+                {
+                    _logger.Fatal("REDO THIS");
+                    _logger.Info("");
+                    _logger.Error("--- Target ID information ---");
+                    foreach (var shellBag in lnk.TargetIDs)
+                    {
+                        _logger.Info($">>{shellBag}");
+                    }
+                }
+
                 if (lnk.ExtraBlocks.Count > 0)
                 {
                     _logger.Info("");
-                    _logger.Warn("--- Extra blocks information ---");
+                    _logger.Error("--- Extra blocks information ---");
+                    _logger.Info("");
+
                     foreach (var extraDataBase in lnk.ExtraBlocks)
                     {
-                        _logger.Info($">>{extraDataBase}");
-                        _logger.Info("");
+                        switch (extraDataBase.GetType().Name)
+                        {
+                            case "ConsoleDataBlock":
+                                var cdb = extraDataBase as ConsoleDataBlock;
+                                _logger.Warn(">> Console data block");
+                                _logger.Info($"  Fill Attributes: {cdb.FillAttributes}");
+                                _logger.Info($"  Popup Attributes: {cdb.PopupFillAttributes}");
+                                _logger.Info($"  Buffer Size (Width x Height): {cdb.ScreenWidthBufferSize} x {cdb.ScreenHeightBufferSize}");
+                                _logger.Info($"  Window Size (Width x Height): {cdb.WindowWidth} x {cdb.WindowHeight}");
+                                _logger.Info($"  Origin (X/Y): {cdb.WindowOriginX}/{cdb.WindowOriginY}");
+                                _logger.Info($"  Font Size: {cdb.FontSize}");
+                                _logger.Info($"  Is Bold: {cdb.IsBold}");
+                                _logger.Info($"  Face Name: {cdb.FaceName}");
+                                _logger.Info($"  Cursor Size: {cdb.CursorSize}");
+                                _logger.Info($"  Is Full Screen: {cdb.IsFullScreen}");
+                                _logger.Info($"  Is Quick Edit: {cdb.IsQuickEdit}");
+                                _logger.Info($"  Is Insert Mode: {cdb.IsInsertMode}");
+                                _logger.Info($"  Is Auto Positioned: {cdb.IsAutoPositioned}");
+                                _logger.Info($"  History Buffer Size: {cdb.HistoryBufferSize}");
+                                _logger.Info($"  History Buffer Count: {cdb.HistoryBufferCount}");
+                                _logger.Info($"  History Duplicates Allowed: {cdb.HistoryDuplicatesAllowed}");
+                                _logger.Info("");
+                                break;
+                            case "ConsoleFEDataBlock":
+                                var cfedb = extraDataBase as ConsoleFEDataBlock;
+                                _logger.Warn(">> Console FE data block");
+                                _logger.Info($"  Code page: {cfedb.CodePage}");
+                                _logger.Info("");
+                                break;
+                            case "DarwinDataBlock":
+                                var ddb = extraDataBase as DarwinDataBlock;
+                                _logger.Warn(">> Darwin data block");
+                                _logger.Info($"  Application ID: {ddb.ApplicationIdentifierUnicode}");
+                                _logger.Info("");
+                                break;
+                            case "EnvironmentVariableDataBlock":
+                                var evdb = extraDataBase as EnvironmentVariableDataBlock;
+                                _logger.Warn(">> Environment variable data block");
+                                _logger.Info($"  Environment variables: {evdb.EnvironmentVariablesUnicode}");
+                                _logger.Info("");
+                                break;
+                            case "IconEnvironmentDataBlock":
+                                var iedb = extraDataBase as IconEnvironmentDataBlock;
+                                _logger.Warn(">> Icon environment data block");
+                                _logger.Info($"  Icon pat: {iedb.IconPathUni}");
+                                _logger.Info("");
+                                break;
+                            case "KnownFolderDataBlock":
+                                var kfdb = extraDataBase as KnownFolderDataBlock;
+                                _logger.Warn(">> Known folder data block");
+                                _logger.Info($"  Known folder GUID: {kfdb.KnownFolderID} ({kfdb.KnownFolderName})");
+                                _logger.Info("");
+                                break;
+                            case "PropertyStoreDataBlock":
+                                var psdb = extraDataBase as PropertyStoreDataBlock;
+
+                                if (psdb.PropertyStore.Sheets.Count > 0)
+                                {
+                                    _logger.Warn(">> Property store data block (Format: GUID\\ID Description ==> Value)");
+                                    var propCount = 0;
+
+                                    foreach (var prop in psdb.PropertyStore.Sheets)
+                                    {
+                                        foreach (var propertyName in prop.PropertyNames)
+                                        {
+                                            propCount += 1;
+                                            
+                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                            
+                                            var suffix = $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}".PadRight(35);
+                                            
+                                            _logger.Info($"  {prefix} {suffix} ==> {propertyName.Value}");
+                                        }
+                                    }
+
+                                    if (propCount == 0)
+                                    {
+                                        _logger.Warn("  (Property store is empty)");
+                                    }
+
+                                }
+                                _logger.Info("");
+                                break;
+                            case "ShimDataBlock":
+                                var sdb = extraDataBase as ShimDataBlock;
+                                _logger.Warn(">> Shimcache data block");
+                                _logger.Info($"  LayerName: {sdb.LayerName}");
+                                _logger.Info("");
+                                break;
+                            case "SpecialFolderDataBlock":
+                                var sfdb = extraDataBase as SpecialFolderDataBlock;
+                                _logger.Warn(">> Special folder data block");
+                                _logger.Info($"  SpecialFolder ID: {sfdb.SpecialFolderID}");
+                                _logger.Info("");
+                                break;
+                            case "TrackerDataBaseBlock":
+                                var tdb = extraDataBase as TrackerDataBaseBlock;
+                                _logger.Warn(">> Tracker database block");
+                                _logger.Info($"  Machine ID: {tdb.MachineId}");
+                                _logger.Info($"  Mac Address: {tdb.MacAddress}");
+                                _logger.Info($"  Creation: {tdb.CreationTime}");
+                                _logger.Info("");
+                                _logger.Info($"  Volume Droid: {tdb.VolumeDroid}");
+                                _logger.Info($"  Volume Droid Birth: {tdb.VolumeDroidBirth}");
+                                _logger.Info($"  File Droid: {tdb.FileDroid}");
+                                _logger.Info($"  File Droid birth: {tdb.FileDroidBirth}");
+                                _logger.Info("");
+                                break;
+                            case "VistaAndAboveIDListDataBlock":
+                                var vdb = extraDataBase as VistaAndAboveIDListDataBlock;
+                                _logger.Warn(">> Vista and above ID List data block");
+                                
+                                foreach (var shellBag in vdb.TargetIDs)
+                                {
+                                    _logger.Info(shellBag.ToString());
+                                }
+
+                                break;
+                        }
+                
                     }
                 }
 
@@ -429,6 +559,8 @@ namespace LnkCmd
         //   public string Keywords { get; set; }
          public string JsonDirectory { get; set; }
           public bool JsonPretty { get; set; }
+          public bool AllFiles { get; set; }
+
         //  public bool LocalTime { get; set; }
         //  public string CsvFile { get; set; }
         //  public bool Quiet { get; set; }

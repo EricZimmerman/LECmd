@@ -42,6 +42,8 @@ namespace LnkCmd
             }
         }
 
+        private static List<string> _failedFiles;
+
         static void Main(string[] args)
         {
             SetupNLog();
@@ -175,6 +177,9 @@ namespace LnkCmd
 
                 string[] lnkFiles = null;
 
+                _failedFiles = new List<string>();
+
+
                 try
                 {
                     var mask = "*.lnk";
@@ -210,7 +215,16 @@ namespace LnkCmd
 
                 sw.Stop();
 
-                _logger.Info($"Processed {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
+                _logger.Info($"Processed {(lnkFiles.Length - _failedFiles.Count):N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
+                if (_failedFiles.Count > 0)
+                {
+                    _logger.Info("");
+                    _logger.Warn("Failed files");
+                    foreach (var failedFile in _failedFiles)
+                    {
+                        _logger.Info($"  {failedFile}");
+                    }
+                }
             }
 
         }
@@ -384,9 +398,9 @@ namespace LnkCmd
 
                         _logger.Info($"  -{shellBag.FriendlyName} ==> {val}");
 
-                        switch (shellBag.GetType().Name)
+                        switch (shellBag.GetType().Name.ToUpper())
                         {
-                            case "ShellBag0X32":
+                            case "SHELLBAG0X32":
                                 var b32 = shellBag as ShellBag0X32;
 
                                 _logger.Info($"    Short name: {b32.ShortName}");
@@ -439,7 +453,7 @@ namespace LnkCmd
                                 // _logger.Fatal("ShellBag0x31 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
 
                                 break;
-                            case "ShellBag0X31":
+                            case "SHELLBAG0X31":
 
                                 var b3x = shellBag as ShellBag0X31;
                         
@@ -492,8 +506,8 @@ namespace LnkCmd
                                 }
                                 break;
                        
-                            case "ShellBag0x00":
-                                var b00 = shellBag as ShellBag0x00;
+                            case "SHELLBAG0X00":
+                                var b00 = shellBag as ShellBag0X00;
 
                                 if (b00.PropertyStore.Sheets.Count > 0)
                                 {
@@ -521,16 +535,16 @@ namespace LnkCmd
                                 }
 
                                 break;
-                            case "ShellBag0X01":
+                            case "SHELLBAG0X01":
                                 var baaaa1f = shellBag as ShellBag0X01;
                                 if (baaaa1f.DriveLetter.Length > 0)
                                 {
                                     _logger.Info($"  Drive letter: {baaaa1f.DriveLetter}");
                                 }
                                 break;
-                            case "ShellBag0x1f":
+                            case "SHELLBAG0X1F":
                                 
-                                var b1f = shellBag as ShellBag0x1f;
+                                var b1f = shellBag as ShellBag0X1F;
 
                                 if (b1f.PropertyStore.Sheets.Count > 0)
                                 {
@@ -558,34 +572,34 @@ namespace LnkCmd
                                 }
 
                                 break;
-                            case "ShellBag0x2e":
+                            case "SHELLBAG0X2E":
                                 //_logger.Fatal("ShellBag0x2e ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
-                            case "ShellBag0X2F":
+                            case "SHELLBAG0X2F":
                                 var b2f = shellBag as ShellBag0X2F;
 
                                // _logger.Info($"  {b2f.FriendlyName} ==> {b2f.Value}");
                                 break;
                 
                             
-                            case "ShellBag0x40":
+                            case "SHELLBAG0X40":
                               //  _logger.Fatal("ShellBag0x40 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
-                            case "ShellBag0X61":
+                            case "SHELLBAG0X61":
 
                                 break;
-                            case "ShellBag0x71":
-                                var b71 = shellBag as ShellBag0x71;
+                            case "SHELLBAG0X71":
+                                var b71 = shellBag as ShellBag0X71;
                                 if (b71.PropertyStore?.Sheets.Count > 0)
                                 {
                                     _logger.Fatal("Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
                                 }
                                 
                                 break;
-                            case "ShellBag0x74":
+                            case "SHELLBAG0X74":
                                 //_logger.Fatal("ShellBag0x74 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
 
-                                var b74 = shellBag as ShellBag0x74;
+                                var b74 = shellBag as ShellBag0X74;
 
                                 _logger.Info($"    Modified: {b74.LastModificationTime}");
 
@@ -634,10 +648,10 @@ namespace LnkCmd
 
                                 }
                                 break;
-                            case "ShellBag0Xc3":
+                            case "SHELLBAG0XC3":
                                // _logger.Fatal("ShellBag0xc3 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
-                            case "ShellBagZipContents":
+                            case "SHELLBAGZIPCONTENTS":
                                 //_logger.Fatal("ShellBagZipContents ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
                             default:
@@ -683,7 +697,7 @@ namespace LnkCmd
                                 _logger.Info("");
                                 break;
                             case "ConsoleFEDataBlock":
-                                var cfedb = extraDataBase as ConsoleFEDataBlock;
+                                var cfedb = extraDataBase as ConsoleFeDataBlock;
                                 _logger.Warn(">> Console FE data block");
                                 _logger.Info($"   Code page: {cfedb.CodePage}");
                                 _logger.Info("");
@@ -709,7 +723,7 @@ namespace LnkCmd
                             case "KnownFolderDataBlock":
                                 var kfdb = extraDataBase as KnownFolderDataBlock;
                                 _logger.Warn(">> Known folder data block");
-                                _logger.Info($"   Known folder GUID: {kfdb.KnownFolderID} ==> {kfdb.KnownFolderName}");
+                                _logger.Info($"   Known folder GUID: {kfdb.KnownFolderId} ==> {kfdb.KnownFolderName}");
                                 _logger.Info("");
                                 break;
                             case "PropertyStoreDataBlock":
@@ -751,7 +765,7 @@ namespace LnkCmd
                             case "SpecialFolderDataBlock":
                                 var sfdb = extraDataBase as SpecialFolderDataBlock;
                                 _logger.Warn(">> Special folder data block");
-                                _logger.Info($"   Special Folder ID: {sfdb.SpecialFolderID}");
+                                _logger.Info($"   Special Folder ID: {sfdb.SpecialFolderId}");
                                 _logger.Info("");
                                 break;
                             case "TrackerDataBaseBlock":
@@ -768,7 +782,7 @@ namespace LnkCmd
                                 _logger.Info("");
                                 break;
                             case "VistaAndAboveIDListDataBlock":
-                                var vdb = extraDataBase as VistaAndAboveIDListDataBlock;
+                                var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
                                 _logger.Warn(">> Vista and above ID List data block");
                                 
                                 foreach (var shellBag in vdb.TargetIDs)
@@ -801,6 +815,7 @@ namespace LnkCmd
 
             catch (Exception ex)
             {
+                _failedFiles.Add($"{lnkFile} ==> ({ex.Message})");
                 _logger.Fatal($"Error opening '{lnkFile}'. Message: {ex.Message}");
                 _logger.Info("");
             }

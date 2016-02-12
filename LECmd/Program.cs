@@ -562,7 +562,7 @@ namespace LnkCmd
 
                     _logger.Error("--- Target ID information (Format: Type ==> Value) ---");
                     _logger.Info("");
-                    _logger.Info($"Absolute path: {GetAbsolutePathFromTargetIDs(lnk.TargetIDs)}");
+                    _logger.Info($"  Absolute path: {GetAbsolutePathFromTargetIDs(lnk.TargetIDs)}");
                     _logger.Info("");
 
                     foreach (var shellBag in lnk.TargetIDs)

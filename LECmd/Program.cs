@@ -5,29 +5,30 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using ExtensionBlocks;
 using Fclp;
 using Fclp.Internals.Extensions;
+using LECmd.Properties;
 using Lnk;
 using Lnk.ExtraData;
 using Lnk.ShellItems;
 using Microsoft.Win32;
 using NLog;
 using NLog.Config;
-using NLog.Fluent;
 using NLog.Targets;
 using ServiceStack;
 using ServiceStack.Text;
+using CsvWriter = CsvHelper.CsvWriter;
 
 namespace LnkCmd
 {
-    class Program
+    internal class Program
     {
         private static Logger _logger;
 
         private static FluentCommandLineParser<ApplicationArguments> _fluentCommandLineParser;
+
+        private static List<string> _failedFiles;
 
         private static bool CheckForDotnet46()
         {
@@ -42,10 +43,29 @@ namespace LnkCmd
             }
         }
 
-        private static List<string> _failedFiles;
+        private static Dictionary<string,string> _macList = new Dictionary<string, string>();
 
-        static void Main(string[] args)
+        private static void LoadMACs()
         {
+            var lines = Resources.MACs.Split(new string[] { Environment.NewLine }, StringSplitOptions.None);
+
+            foreach (var line in lines)
+            {
+                var segs = line.ToUpperInvariant().Split('\t');
+                var key = segs[0].Trim();
+                var val = segs[1].Trim();
+
+                if (_macList.ContainsKey(key) == false)
+                {
+                    _macList.Add(key,val);
+                }
+            }
+
+        }
+
+        private static void Main(string[] args)
+        {
+            LoadMACs();
             SetupNLog();
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -69,40 +89,53 @@ namespace LnkCmd
                 .As('d')
                 .WithDescription("Directory to recursively process. Either this or -f is required");
 
+            _fluentCommandLineParser.Setup(arg => arg.AllFiles)
+                .As("all")
+                .WithDescription(
+                    "When true, process all files in directory vs. only files matching *.lnk\r\n").SetDefault(false);
+
+            _fluentCommandLineParser.Setup(arg => arg.CsvFile)
+                .As("csv")
+                .WithDescription(
+                    "File to save CSV (tab separated) results to. Be sure to include the full path in double quotes");
+
             _fluentCommandLineParser.Setup(arg => arg.JsonDirectory)
-              .As("json")
-              .WithDescription(
-                  "Directory to save json representation to. Use --pretty for a more human readable layout");
-
-
+                .As("json")
+                .WithDescription(
+                    "Directory to save json representation to. Use --pretty for a more human readable layout");
 
             _fluentCommandLineParser.Setup(arg => arg.JsonPretty)
                 .As("pretty")
                 .WithDescription(
-                    "When exporting to json, use a more human readable layout").SetDefault(false);
+                    "When exporting to json, use a more human readable layout\r\n").SetDefault(false);
 
-            _fluentCommandLineParser.Setup(arg => arg.AllFiles)
-    .As("all")
-    .WithDescription(
-        "When true, process all files in directory vs. only files matching *.lnk").SetDefault(false);
-            
+
+            _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
+                .As("nid")
+                .WithDescription(
+                    "When true, Target ID list details will NOT be displayed. Default is false.").SetDefault(false);
+
+
+            _fluentCommandLineParser.Setup(arg => arg.NoExtraBlocks)
+                .As("neb")
+                .WithDescription(
+                    "When true, Extra blocks information will NOT be displayed. Default is false.").SetDefault(false);
+
+
             var header =
-               $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
-               "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
-               "\r\nhttps://github.com/EricZimmerman/LECmd";
+                $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
+                "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
+                "\r\nhttps://github.com/EricZimmerman/LECmd";
 
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
-                         @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" +
-                         //"\r\n\t " +
+                         @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
+                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.csv""" + "\r\n\t " +
+                         @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
                          @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t ";
-            //@" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\prefetch_out.csv"" --local" + "\r\n\t " +
-            //                         @" PECmd.exe -f ""C:\Temp\someOtherFile.txt"" --lr cc -sa" + "\r\n\t " +
-            //                         @" PECmd.exe -f ""C:\Temp\someOtherFile.txt"" --lr cc -sa -m 15 -x 22" + "\r\n\t " +
-            //@" LECmd.exe -d ""C:\Windows\Prefetch""" + "\r\n\t ";
 
             _fluentCommandLineParser.SetupHelp("?", "help")
-               .WithHeader(header)
-               .Callback(text => _logger.Info(text + "\r\n" + footer));
+                .WithHeader(header)
+                .Callback(text => _logger.Info(text + "\r\n" + footer));
 
             var result = _fluentCommandLineParser.Parse(args);
 
@@ -148,9 +181,22 @@ namespace LnkCmd
             _logger.Info("");
             _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}");
 
+            CsvWriter _csv = null;
+
+            if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
+            {
+                var sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile)
+                {
+                    AutoFlush = true
+                };
+                _csv = new CsvWriter(sw);
+                _csv.Configuration.Delimiter = $"{'\t'}";
+                _csv.WriteHeader(typeof(CsvOut));
+            }
+
             if (_fluentCommandLineParser.Object.File?.Length > 0)
             {
-                Lnk.LnkFile lnk = null;
+                LnkFile lnk = null;
 
                 try
                 {
@@ -169,6 +215,11 @@ namespace LnkCmd
                     return;
                 }
 
+                if (lnk != null && _csv != null)
+                {
+                    var o = GetCsvFormat(lnk);
+                    _csv.WriteRecord(o);
+                }
             }
             else
             {
@@ -188,17 +239,19 @@ namespace LnkCmd
                         mask = "*";
                     }
 
-                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory ,mask,
-                    SearchOption.AllDirectories);
+                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, mask,
+                        SearchOption.AllDirectories);
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    _logger.Error($"Unable to access '{_fluentCommandLineParser.Object.Directory}'. Are you running as an administrator?");
+                    _logger.Error(
+                        $"Unable to access '{_fluentCommandLineParser.Object.Directory}'. Are you running as an administrator?");
                     return;
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error($"Error getting lnk files in '{_fluentCommandLineParser.Object.Directory}'. Error: {ex.Message}");
+                    _logger.Error(
+                        $"Error getting lnk files in '{_fluentCommandLineParser.Object.Directory}'. Error: {ex.Message}");
                     return;
                 }
 
@@ -211,11 +264,17 @@ namespace LnkCmd
                 foreach (var file in lnkFiles)
                 {
                     var lnk = LoadFile(file);
+                    if (lnk != null && _csv != null)
+                    {
+                        var o = GetCsvFormat(lnk);
+                        _csv.WriteRecord(o);
+                    }
                 }
 
                 sw.Stop();
 
-                _logger.Info($"Processed {(lnkFiles.Length - _failedFiles.Count):N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
+                _logger.Info(
+                    $"Processed {lnkFiles.Length - _failedFiles.Count:N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
                 if (_failedFiles.Count > 0)
                 {
                     _logger.Info("");
@@ -226,7 +285,94 @@ namespace LnkCmd
                     }
                 }
             }
+        }
 
+        private static CsvOut GetCsvFormat(LnkFile lnk)
+        {
+            var csOut = new CsvOut();
+            csOut.SourceFile = lnk.SourceFile;
+            csOut.SourceCreated = lnk.SourceCreated;
+            csOut.SourceModified = lnk.SourceModified;
+            csOut.SourceAccessed = lnk.SourceAccessed;
+
+            csOut.TargetCreated = lnk.Header.TargetCreationDate;
+            csOut.TargetModified = lnk.Header.TargetModificationDate;
+            csOut.TargetAccessed = lnk.Header.TargetLastAccessedDate;
+
+            csOut.CommonPath = lnk.CommonPath;
+            csOut.DriveLabel = lnk.VolumeInfo?.VolumeLabel;
+            csOut.DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber;
+            csOut.DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType);
+
+            csOut.FileAttributes = lnk.Header.FileAttributes.ToString();
+            csOut.FileSize = lnk.Header.FileSize;
+            csOut.HeaderFlags = lnk.Header.DataFlags.ToString();
+            csOut.LocalPath = lnk.LocalPath;
+
+            csOut.RelativePath = lnk.RelativePath;
+            if (lnk.TargetIDs?.Count > 0)
+            {
+                csOut.TargetIDAbsolutePath = GetAbsolutePathFromTargetIDs(lnk.TargetIDs);
+            }
+
+            csOut.WorkingDirectory = lnk.WorkingDirectory;
+
+            var ebPresent = string.Empty;
+
+            if (lnk.ExtraBlocks.Count > 0)
+            {
+                var names = new List<string>();
+
+                foreach (var extraDataBase in lnk.ExtraBlocks)
+                {
+                    names.Add(extraDataBase.GetType().Name);
+                }
+
+                ebPresent = string.Join(", ", names);
+            }
+
+            csOut.ExtraBlocksPresent = ebPresent;
+
+            var tnb = lnk.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
+
+
+            if (tnb != null)
+            {
+                var tnbBlock = tnb as TrackerDataBaseBlock;
+
+                csOut.TrackerCreatedOn = tnbBlock?.CreationTime;
+
+                csOut.MachineID = tnbBlock?.MachineId;
+                csOut.MachineMACAddress = tnbBlock?.MacAddress;
+                csOut.MACVendor = GetVendorFromMac(tnbBlock?.MacAddress);
+            }
+
+            if (lnk.TargetIDs?.Count > 0)
+            {
+                var si = lnk.TargetIDs.Last();
+
+                if (si.ExtensionBlocks?.Count > 0)
+                {
+                    var eb = si.ExtensionBlocks?.Last();
+                    if (eb is Beef0004)
+                    {
+                        var eb4 = eb as Beef0004;
+                        if (eb4.MFTInformation.MFTEntryNumber != null)
+                        {
+                            csOut.TargetMFTEntryNumber = $"0x{eb4.MFTInformation.MFTEntryNumber.Value.ToString("X")}";
+                        }
+
+                        if (eb4.MFTInformation.MFTSequenceNumber != null)
+                        {
+                            csOut.TargetMFTSequenceNumber =
+                                $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}";
+                        }
+                    }
+                }
+            }
+
+
+            return csOut;
         }
 
         private static void DumpToJson(LnkFile lnk, bool pretty, string outFile)
@@ -265,13 +411,27 @@ namespace LnkCmd
             }
         }
 
-        private static  string GetDescriptionFromEnumValue(Enum value)
+        private static string GetDescriptionFromEnumValue(Enum value)
         {
             var attribute = value.GetType()
                 .GetField(value.ToString())
                 .GetCustomAttributes(typeof(DescriptionAttribute), false)
                 .SingleOrDefault() as DescriptionAttribute;
             return attribute == null ? value.ToString() : attribute.Description;
+        }
+
+        private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)
+        {
+            var absPath = string.Empty;
+
+            foreach (var shellBag in ids)
+            {
+                absPath += shellBag.Value + @"\";
+            }
+
+            absPath = absPath.Substring(0, absPath.Length - 1);
+
+            return absPath;
         }
 
         private static LnkFile LoadFile(string lnkFile)
@@ -307,8 +467,9 @@ namespace LnkCmd
                 }
 
                 _logger.Info($"  Icon index: {lnk.Header.IconIndex}");
-                _logger.Info($"  Show window: {lnk.Header.ShowWindow} ({GetDescriptionFromEnumValue(lnk.Header.ShowWindow)})");
-                
+                _logger.Info(
+                    $"  Show window: {lnk.Header.ShowWindow} ({GetDescriptionFromEnumValue(lnk.Header.ShowWindow)})");
+
                 _logger.Info("");
 
                 if ((lnk.Header.DataFlags & Header.DataFlag.HasName) == Header.DataFlag.HasName)
@@ -353,7 +514,7 @@ namespace LnkCmd
 
                         _logger.Info($"  Label: {label}");
                     }
-                    
+
                     if (lnk.NetworkShareInfo != null)
                     {
                         _logger.Info("");
@@ -380,21 +541,36 @@ namespace LnkCmd
                     {
                         _logger.Info($"  Common path: {lnk.CommonPath}");
                     }
-                    
                 }
 
-                if (lnk.TargetIDs.Count > 0)
+                if (_fluentCommandLineParser.Object.NoTargetIDList)
                 {
                     _logger.Info("");
+                    _logger.Warn($"(Target ID information suppressed. Lnk TargetID count: {lnk.TargetIDs.Count:N0})");
+                }
+
+                if (lnk.TargetIDs.Count > 0 && !_fluentCommandLineParser.Object.NoTargetIDList)
+                {
+                    _logger.Info("");
+
+                    var absPath = string.Empty;
+
+                    foreach (var shellBag in lnk.TargetIDs)
+                    {
+                        absPath += shellBag.Value + @"\";
+                    }
+
                     _logger.Error("--- Target ID information (Format: Type ==> Value) ---");
+                    _logger.Info("");
+                    _logger.Info($"Absolute path: {GetAbsolutePathFromTargetIDs(lnk.TargetIDs)}");
+                    _logger.Info("");
+
                     foreach (var shellBag in lnk.TargetIDs)
                     {
                         //HACK
                         //This is a total hack until i can refactor some shellbag code to clean things up
 
                         var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-
-
 
                         _logger.Info($"  -{shellBag.FriendlyName} ==> {val}");
 
@@ -413,7 +589,8 @@ namespace LnkCmd
                                     _logger.Info("");
                                     foreach (var extensionBlock in b32.ExtensionBlocks)
                                     {
-                                        _logger.Info($"    --------- Block {extensionNumber32:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        _logger.Info(
+                                            $"    --------- Block {extensionNumber32:N0} ({extensionBlock.GetType().Name}) ---------");
                                         if (extensionBlock is Beef0004)
                                         {
                                             var b4 = extensionBlock as Beef0004;
@@ -428,7 +605,8 @@ namespace LnkCmd
                                             _logger.Info($"    Last access: {b4.LastAccessTime}");
                                             if (b4.MFTInformation.MFTEntryNumber > 0)
                                             {
-                                                _logger.Info($"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
                                             }
                                         }
                                         else if (extensionBlock is Beef0025)
@@ -448,15 +626,13 @@ namespace LnkCmd
 
                                         extensionNumber32 += 1;
                                     }
-
                                 }
-                                // _logger.Fatal("ShellBag0x31 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
 
                                 break;
                             case "SHELLBAG0X31":
 
                                 var b3x = shellBag as ShellBag0X31;
-                        
+
                                 _logger.Info($"    Short name: {b3x.ShortName}");
                                 _logger.Info($"    Modified: {b3x.LastModificationTime}");
 
@@ -467,7 +643,8 @@ namespace LnkCmd
                                     _logger.Info("");
                                     foreach (var extensionBlock in b3x.ExtensionBlocks)
                                     {
-                                        _logger.Info($"    --------- Block {extensionNumber:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        _logger.Info(
+                                            $"    --------- Block {extensionNumber:N0} ({extensionBlock.GetType().Name}) ---------");
                                         if (extensionBlock is Beef0004)
                                         {
                                             var b4 = extensionBlock as Beef0004;
@@ -482,7 +659,8 @@ namespace LnkCmd
                                             _logger.Info($"    Last access: {b4.LastAccessTime}");
                                             if (b4.MFTInformation.MFTEntryNumber > 0)
                                             {
-                                                _logger.Info($"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
                                             }
                                         }
                                         else if (extensionBlock is Beef0025)
@@ -502,10 +680,9 @@ namespace LnkCmd
 
                                         extensionNumber += 1;
                                     }
-                                    
                                 }
                                 break;
-                       
+
                             case "SHELLBAG0X00":
                                 var b00 = shellBag as ShellBag0X00;
 
@@ -522,7 +699,9 @@ namespace LnkCmd
 
                                             var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
 
-                                            var suffix = $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}".PadRight(35);
+                                            var suffix =
+                                                $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                    .PadRight(35);
 
                                             _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                         }
@@ -543,7 +722,7 @@ namespace LnkCmd
                                 }
                                 break;
                             case "SHELLBAG0X1F":
-                                
+
                                 var b1f = shellBag as ShellBag0X1F;
 
                                 if (b1f.PropertyStore.Sheets.Count > 0)
@@ -559,7 +738,9 @@ namespace LnkCmd
 
                                             var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
 
-                                            var suffix = $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}".PadRight(35);
+                                            var suffix =
+                                                $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                    .PadRight(35);
 
                                             _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                         }
@@ -573,17 +754,12 @@ namespace LnkCmd
 
                                 break;
                             case "SHELLBAG0X2E":
-                                //_logger.Fatal("ShellBag0x2e ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
                             case "SHELLBAG0X2F":
                                 var b2f = shellBag as ShellBag0X2F;
 
-                               // _logger.Info($"  {b2f.FriendlyName} ==> {b2f.Value}");
                                 break;
-                
-                            
                             case "SHELLBAG0X40":
-                              //  _logger.Fatal("ShellBag0x40 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
                             case "SHELLBAG0X61":
 
@@ -592,13 +768,12 @@ namespace LnkCmd
                                 var b71 = shellBag as ShellBag0X71;
                                 if (b71.PropertyStore?.Sheets.Count > 0)
                                 {
-                                    _logger.Fatal("Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
+                                    _logger.Fatal(
+                                        "Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
                                 }
-                                
+
                                 break;
                             case "SHELLBAG0X74":
-                                //_logger.Fatal("ShellBag0x74 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
-
                                 var b74 = shellBag as ShellBag0X74;
 
                                 _logger.Info($"    Modified: {b74.LastModificationTime}");
@@ -610,7 +785,8 @@ namespace LnkCmd
                                     _logger.Info("");
                                     foreach (var extensionBlock in b74.ExtensionBlocks)
                                     {
-                                        _logger.Info($"    --------- Block {extensionNumber74:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        _logger.Info(
+                                            $"    --------- Block {extensionNumber74:N0} ({extensionBlock.GetType().Name}) ---------");
                                         if (extensionBlock is Beef0004)
                                         {
                                             var b4 = extensionBlock as Beef0004;
@@ -625,7 +801,8 @@ namespace LnkCmd
                                             _logger.Info($"    Last access: {b4.LastAccessTime}");
                                             if (b4.MFTInformation.MFTEntryNumber > 0)
                                             {
-                                                _logger.Info($"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
                                             }
                                         }
                                         else if (extensionBlock is Beef0025)
@@ -645,27 +822,32 @@ namespace LnkCmd
 
                                         extensionNumber74 += 1;
                                     }
-
                                 }
                                 break;
                             case "SHELLBAG0XC3":
-                               // _logger.Fatal("ShellBag0xc3 ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
                             case "SHELLBAGZIPCONTENTS":
-                                //_logger.Fatal("ShellBagZipContents ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" + shellBag.ToString());
                                 break;
                             default:
-                                _logger.Fatal($">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
+                                _logger.Fatal(
+                                    $">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
                                 _logger.Fatal($">>{shellBag}");
                                 break;
                         }
-                        
+
                         _logger.Info("");
                     }
                     _logger.Error("--- End Target ID information ---");
                 }
 
-                if (lnk.ExtraBlocks.Count > 0)
+                if (_fluentCommandLineParser.Object.NoExtraBlocks)
+                {
+                    _logger.Info("");
+                    _logger.Warn(
+                        $"(Extra blocks information suppressed. Lnk Extra block count: {lnk.ExtraBlocks.Count:N0})");
+                }
+
+                if (lnk.ExtraBlocks.Count > 0 && !_fluentCommandLineParser.Object.NoExtraBlocks)
                 {
                     _logger.Info("");
                     _logger.Error("--- Extra blocks information ---");
@@ -680,7 +862,8 @@ namespace LnkCmd
                                 _logger.Warn(">> Console data block");
                                 _logger.Info($"   Fill Attributes: {cdb.FillAttributes}");
                                 _logger.Info($"   Popup Attributes: {cdb.PopupFillAttributes}");
-                                _logger.Info($"   Buffer Size (Width x Height): {cdb.ScreenWidthBufferSize} x {cdb.ScreenHeightBufferSize}");
+                                _logger.Info(
+                                    $"   Buffer Size (Width x Height): {cdb.ScreenWidthBufferSize} x {cdb.ScreenHeightBufferSize}");
                                 _logger.Info($"   Window Size (Width x Height): {cdb.WindowWidth} x {cdb.WindowHeight}");
                                 _logger.Info($"   Origin (X/Y): {cdb.WindowOriginX}/{cdb.WindowOriginY}");
                                 _logger.Info($"   Font Size: {cdb.FontSize}");
@@ -739,11 +922,12 @@ namespace LnkCmd
                                         foreach (var propertyName in prop.PropertyNames)
                                         {
                                             propCount += 1;
-                                            
+
                                             var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                            
-                                            var suffix = $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}".PadRight(35);
-                                            
+                                            var suffix =
+                                                $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                    .PadRight(35);
+
                                             _logger.Info($"   {prefix} {suffix} ==> {propertyName.Value}");
                                         }
                                     }
@@ -752,7 +936,6 @@ namespace LnkCmd
                                     {
                                         _logger.Warn("   (Property store is empty)");
                                     }
-
                                 }
                                 _logger.Info("");
                                 break;
@@ -773,6 +956,7 @@ namespace LnkCmd
                                 _logger.Warn(">> Tracker database block");
                                 _logger.Info($"   Machine ID: {tdb.MachineId}");
                                 _logger.Info($"   Mac Address: {tdb.MacAddress}");
+                                _logger.Info($"   Mac Vendor: {GetVendorFromMac(tdb.MacAddress)}");
                                 _logger.Info($"   Creation: {tdb.CreationTime}");
                                 _logger.Info("");
                                 _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
@@ -784,11 +968,10 @@ namespace LnkCmd
                             case "VistaAndAboveIDListDataBlock":
                                 var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
                                 _logger.Warn(">> Vista and above ID List data block");
-                                
+
                                 foreach (var shellBag in vdb.TargetIDs)
                                 {
                                     var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-                                    
                                     _logger.Info($"   {shellBag.FriendlyName} ==> {val}");
                                 }
 
@@ -820,8 +1003,25 @@ namespace LnkCmd
                 _logger.Info("");
             }
 
-
             return null;
+        }
+
+        private static string GetVendorFromMac(string macAddress)
+        {
+            //00-00-00	XEROX CORPORATION
+            //"00:14:22:0d:94:04"
+
+            var mac = string.Join("-", macAddress.Split(':').Take(3)).ToUpperInvariant();// .Replace(":", "-").ToUpper();
+
+            var vendor = "(Unknown vendor)";
+
+            if (_macList.ContainsKey(mac))
+            {
+                vendor = _macList[mac];
+            }
+
+            return vendor;
+
         }
 
         private static void SetupNLog()
@@ -844,17 +1044,49 @@ namespace LnkCmd
         }
     }
 
+    public sealed class CsvOut
+    {
+        public string SourceFile { get; set; }
+        public DateTimeOffset SourceCreated { get; set; }
+        public DateTimeOffset SourceModified { get; set; }
+        public DateTimeOffset SourceAccessed { get; set; }
+        public DateTimeOffset? TargetCreated { get; set; }
+        public DateTimeOffset? TargetModified { get; set; }
+        public DateTimeOffset? TargetAccessed { get; set; }
+        public int FileSize { get; set; }
+        public string RelativePath { get; set; }
+        public string WorkingDirectory { get; set; }
+        public string FileAttributes { get; set; }
+        public string HeaderFlags { get; set; }
+        public string DriveType { get; set; }
+        public string DriveSerialNumber { get; set; }
+        public string DriveLabel { get; set; }
+        public string LocalPath { get; set; }
+        public string CommonPath { get; set; }
+        public string TargetIDAbsolutePath { get; set; }
+        public string TargetMFTEntryNumber { get; set; }
+        public string TargetMFTSequenceNumber { get; set; }
+        public string MachineID { get; set; }
+        public string MachineMACAddress { get; set; }
+        public string MACVendor { get; set; }
+        public DateTimeOffset? TrackerCreatedOn { get; set; }
+        public string ExtraBlocksPresent { get; set; }
+    }
+
     internal class ApplicationArguments
     {
         public string File { get; set; }
         public string Directory { get; set; }
-        //   public string Keywords { get; set; }
-         public string JsonDirectory { get; set; }
-          public bool JsonPretty { get; set; }
-          public bool AllFiles { get; set; }
+
+        public string JsonDirectory { get; set; }
+        public bool JsonPretty { get; set; }
+        public bool AllFiles { get; set; }
+        public bool NoTargetIDList { get; set; }
+        public bool NoExtraBlocks { get; set; }
+        public string CsvFile { get; set; }
+
+        //  public bool Quiet { get; set; }
 
         //  public bool LocalTime { get; set; }
-        //  public string CsvFile { get; set; }
-        //  public bool Quiet { get; set; }
     }
 }

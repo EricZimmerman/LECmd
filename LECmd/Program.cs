@@ -109,6 +109,11 @@ namespace LnkCmd
                 .WithDescription(
                     "When exporting to json, use a more human readable layout\r\n").SetDefault(false);
 
+            _fluentCommandLineParser.Setup(arg => arg.Quiet)
+                .As('q')
+                .WithDescription(
+                    "When true, only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv\r\n").SetDefault(false);
+
 
             _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
                 .As("nid")
@@ -129,7 +134,7 @@ namespace LnkCmd
 
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.csv""" + "\r\n\t " +
+                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.csv"" -q" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
                          @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t ";
 
@@ -185,13 +190,23 @@ namespace LnkCmd
 
             if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
             {
-                var sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile)
+                try
                 {
-                    AutoFlush = true
-                };
-                _csv = new CsvWriter(sw);
-                _csv.Configuration.Delimiter = $"{'\t'}";
-                _csv.WriteHeader(typeof(CsvOut));
+                    var sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile)
+                    {
+                        AutoFlush = true
+                    };
+                    _csv = new CsvWriter(sw);
+                    _csv.Configuration.Delimiter = $"{'\t'}";
+                    _csv.WriteHeader(typeof(CsvOut));
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(
+                        $"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. Check permissions and try again. Exiting");
+                    return;
+                }
+                
             }
 
             if (_fluentCommandLineParser.Object.File?.Length > 0)
@@ -272,6 +287,11 @@ namespace LnkCmd
                 }
 
                 sw.Stop();
+
+                if (_fluentCommandLineParser.Object.Quiet)
+                {
+                    _logger.Info("");
+                }
 
                 _logger.Info(
                     $"Processed {lnkFiles.Length - _failedFiles.Count:N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
@@ -436,8 +456,11 @@ namespace LnkCmd
 
         private static LnkFile LoadFile(string lnkFile)
         {
-            _logger.Warn($"Processing '{lnkFile}'");
-            _logger.Info("");
+            if (_fluentCommandLineParser.Object.Quiet == false)
+            {
+                _logger.Warn($"Processing '{lnkFile}'");
+                _logger.Info("");
+            }
 
             var sw = new Stopwatch();
             sw.Start();
@@ -446,6 +469,9 @@ namespace LnkCmd
             {
                 var lnk = Lnk.Lnk.LoadFile(lnkFile);
 
+                if (_fluentCommandLineParser.Object.Quiet == false)
+                {
+                    
                 _logger.Error($"Source file: {lnk.SourceFile}");
                 _logger.Info($"  Source created:  {lnk.SourceCreated}");
                 _logger.Info($"  Source modified: {lnk.SourceModified}");
@@ -955,8 +981,8 @@ namespace LnkCmd
                                 var tdb = extraDataBase as TrackerDataBaseBlock;
                                 _logger.Warn(">> Tracker database block");
                                 _logger.Info($"   Machine ID: {tdb.MachineId}");
-                                _logger.Info($"   Mac Address: {tdb.MacAddress}");
-                                _logger.Info($"   Mac Vendor: {GetVendorFromMac(tdb.MacAddress)}");
+                                _logger.Info($"   MAC Address: {tdb.MacAddress}");
+                                _logger.Info($"   MAC Vendor: {GetVendorFromMac(tdb.MacAddress)}");
                                 _logger.Info($"   Creation: {tdb.CreationTime}");
                                 _logger.Info("");
                                 _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
@@ -981,6 +1007,8 @@ namespace LnkCmd
                     }
                 }
 
+                }
+
                 sw.Stop();
 
                 if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
@@ -989,10 +1017,19 @@ namespace LnkCmd
                         _fluentCommandLineParser.Object.JsonDirectory);
                 }
 
-                _logger.Info("");
+                if (_fluentCommandLineParser.Object.Quiet == false)
+                {
+                    _logger.Info("");
+                }
+                    
                 _logger.Info(
                     $"---------- Processed '{lnk.SourceFile}' in {sw.Elapsed.TotalSeconds:N4} seconds ----------");
-                _logger.Info("\r\n");
+
+                if (_fluentCommandLineParser.Object.Quiet == false)
+                {
+                    _logger.Info("\r\n");
+                }
+                
                 return lnk;
             }
 
@@ -1085,7 +1122,7 @@ namespace LnkCmd
         public bool NoExtraBlocks { get; set; }
         public string CsvFile { get; set; }
 
-        //  public bool Quiet { get; set; }
+          public bool Quiet { get; set; }
 
         //  public bool LocalTime { get; set; }
     }

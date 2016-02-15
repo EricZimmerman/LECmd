@@ -366,7 +366,7 @@ namespace LnkCmd
                     $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_LECmd_Output_for{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\","_").Replace(@"\", "_")}.xhtml";
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, outName);
 
-                        _logger.Info($"Saving xhtml output to '{outFile}'");
+                        _logger.Info($"Saving HTML output to '{outFile}'");
 
                         xml = new XmlTextWriter(outFile,Encoding.UTF8);
                         xml.Formatting = Formatting.Indented;

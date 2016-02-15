@@ -86,6 +86,8 @@
     <Content Include="Dependencies\ExtensionBlocks.dll" />
     <Content Include="Dependencies\Lnk.dll" />
     <Content Include="PcDesktopCheck.ico" />
+    <None Include="Resources\style.css" />
+    <None Include="Resources\normalize.css" />
     <None Include="Resources\MACs.txt" />
   </ItemGroup>
   <ItemGroup>

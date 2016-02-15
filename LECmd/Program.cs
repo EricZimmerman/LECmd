@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
+using System.Xml;
 using ExtensionBlocks;
 using Fclp;
 using Fclp.Internals.Extensions;
@@ -63,12 +65,16 @@ namespace LnkCmd
 
         }
 
-        private static CsvWriter _csv = null;
-        private static StreamWriter _sw = null;
+        private const string SSLicenseFile = @"D:\SSLic.txt";
+
+        private static List<LnkFile> _processedFiles = null;
 
         private static void Main(string[] args)
         {
+            Licensing.RegisterLicenseFromFileIfExists(SSLicenseFile);
+
             LoadMACs();
+
             SetupNLog();
 
             _logger = LogManager.GetCurrentClassLogger();
@@ -100,7 +106,17 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.CsvFile)
                 .As("csv")
                 .WithDescription(
-                    "File to save CSV (tab separated) results to. Be sure to include the full path in double quotes");
+                    "File to save CSV (tab separated) formatted results to. Be sure to include the full path in double quotes");
+
+            _fluentCommandLineParser.Setup(arg => arg.XmlDirectory)
+                .As("xml")
+                .WithDescription(
+                    "Directory to save XML formatted results to. Be sure to include the full path in double quotes");
+
+            _fluentCommandLineParser.Setup(arg => arg.xHtmlDirectory)
+              .As("html")
+              .WithDescription(
+                  "Directory to save xhtml formatted results to. Be sure to include the full path in double quotes");
 
             _fluentCommandLineParser.Setup(arg => arg.JsonDirectory)
                 .As("json")
@@ -187,9 +203,11 @@ namespace LnkCmd
 
             _logger.Info(header);
             _logger.Info("");
-            _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}");
+            _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}\r\n");
 
-            
+
+            _processedFiles = new List<LnkFile>();
+                
 
             if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
             {
@@ -198,27 +216,6 @@ namespace LnkCmd
                     _logger.Error($"'{_fluentCommandLineParser.Object.CsvFile}' is not a file. Please specify a file to save results to. Exiting");
                     return;
                 }
-
-                try
-                {
-                    _logger.Info("");
-                    _fluentCommandLineParser.Object.CsvFile = Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
-                    _logger.Info($"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
-
-
-                    _sw  = new StreamWriter(_fluentCommandLineParser.Object.CsvFile);
-                    
-                    _csv = new CsvWriter(_sw);
-                    _csv.Configuration.Delimiter = $"{'\t'}";
-                    _csv.WriteHeader(typeof(CsvOut));
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(
-                        $"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. Check permissions and try again. Exiting");
-                    return;
-                }
-                
             }
 
             if (_fluentCommandLineParser.Object.File?.Length > 0)
@@ -227,7 +224,12 @@ namespace LnkCmd
 
                 try
                 {
-                    lnk = LoadFile(_fluentCommandLineParser.Object.File);
+                    lnk = ProcessFile(_fluentCommandLineParser.Object.File);
+                    if (lnk != null)
+                    {
+                        _processedFiles.Add(lnk);
+                    }
+                    
                 }
                 catch (UnauthorizedAccessException)
                 {
@@ -242,11 +244,7 @@ namespace LnkCmd
                     return;
                 }
 
-                if (lnk != null && _csv != null)
-                {
-                    var o = GetCsvFormat(lnk);
-                    _csv.WriteRecord(o);
-                }
+      
             }
             else
             {
@@ -256,7 +254,6 @@ namespace LnkCmd
                 string[] lnkFiles = null;
 
                 _failedFiles = new List<string>();
-
 
                 try
                 {
@@ -290,11 +287,10 @@ namespace LnkCmd
 
                 foreach (var file in lnkFiles)
                 {
-                    var lnk = LoadFile(file);
-                    if (lnk != null && _csv != null)
+                    var lnk = ProcessFile(file);
+                    if (lnk != null)
                     {
-                        var o = GetCsvFormat(lnk);
-                        _csv.WriteRecord(o);
+                        _processedFiles.Add(lnk);
                     }
                 }
 
@@ -318,9 +314,197 @@ namespace LnkCmd
                 }
             }
 
+            if (_processedFiles.Count > 0)
+            {
+                _logger.Info("");
+
+                try
+                {
+                    CsvWriter csv = null;
+                    StreamWriter sw = null;
+
+                    if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
+                    {
+                        _fluentCommandLineParser.Object.CsvFile = Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
+                        _logger.Info($"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
+                        _logger.Info("");
+
+                        try
+                        {
+                            sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile);
+                            csv = new CsvWriter(sw);
+                            csv.Configuration.Delimiter = $"{'\t'}";
+                            csv.WriteHeader(typeof(CsvOut));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error($"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. CSV export canceled. Error: {ex.Message}");
+                        }
+                    }
+                    
+                    if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
+                    {
+                        _logger.Info("");
+                        _logger.Info($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
+                        _logger.Info("");
+                    }
+                    if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
+                    {
+                        _logger.Info("");
+                        _logger.Info($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
+                        _logger.Info("");
+                    }
+
+                    XmlTextWriter xml = null;
+
+                    if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)
+                    {
+                        _logger.Info("");
+                        _logger.Info($"Saving xhtml output to '{_fluentCommandLineParser.Object.xHtmlDirectory}'");
+                        _logger.Info("");
+
+                        var outName =
+                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\","_").Replace(@"\", "_")}.xhtml";
+                        var outFile = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, outName);
+
+                        xml = new XmlTextWriter(outFile,Encoding.UTF8);
+                        xml.WriteStartDocument();
+
+                        xml.WriteProcessingInstruction("xml-stylesheet", "href=\"normalize.css\"");
+                        xml.WriteProcessingInstruction("xml-stylesheet", "href=\"style.css\"");
+
+                        xml.WriteStartElement("document");
+                        
+                    }
+
+                    foreach (var processedFile in _processedFiles)
+                    {
+                        var o = GetCsvFormat(processedFile);
+
+                        try
+                        {
+                            csv?.WriteRecord(o);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error($"Error writing record for '{processedFile.SourceFile}' to '{_fluentCommandLineParser.Object.CsvFile}'. Error: {ex.Message}");
+                        }
+
+                        if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
+                        {
+                            SaveJson(processedFile, _fluentCommandLineParser.Object.JsonPretty,
+                                _fluentCommandLineParser.Object.JsonDirectory);
+                        }
+
+                        //XHTML
+                        xml.WriteStartElement("Container");
+                        xml?.WriteElementString("SourceFile",processedFile.SourceFile);
+                        xml?.WriteElementString("SourceCreated", processedFile.SourceCreated.ToString());
+                        xml?.WriteElementString("SourceModified", processedFile.SourceModified.ToString());
+                        xml?.WriteElementString("SourceAccessed", processedFile.SourceAccessed.ToString());
+                        xml?.WriteElementString("TargetCreated", processedFile.Header.TargetCreationDate.ToString());
+                        xml?.WriteElementString("TargetModified", processedFile.Header.TargetModificationDate.ToString());
+                        xml?.WriteElementString("TargetAccessed", processedFile.Header.TargetLastAccessedDate.ToString());
+                        xml?.WriteElementString("FileSize", processedFile.Header.FileSize.ToString());
+                        xml?.WriteElementString("RelativePath", processedFile.RelativePath);
+                        xml?.WriteElementString("WorkingDirectory", processedFile.WorkingDirectory);
+                        xml?.WriteElementString("FileAttributes", processedFile.Header.FileAttributes.ToString());
+                        xml?.WriteElementString("HeaderFlags", processedFile.Header.DataFlags.ToString());
+                        xml?.WriteElementString("DriveType", processedFile.VolumeInfo?.DriveType.ToString());
+                        xml?.WriteElementString("DriveSerialNumber", processedFile.VolumeInfo?.DriveSerialNumber);
+                        xml?.WriteElementString("DriveLabel", processedFile.VolumeInfo?.VolumeLabel);
+                        xml?.WriteElementString("LocalPath", processedFile.LocalPath);
+                        xml?.WriteElementString("CommonPath", processedFile.CommonPath);
+
+                        if (processedFile.TargetIDs?.Count > 0)
+                        {
+                            xml?.WriteElementString("TargetIDAbsolutePath", GetAbsolutePathFromTargetIDs(processedFile.TargetIDs));
+                        }
+
+
+                        if (processedFile.TargetIDs?.Count > 0)
+                        {
+                            var si = processedFile.TargetIDs.Last();
+
+                            if (si.ExtensionBlocks?.Count > 0)
+                            {
+                                var eb = si.ExtensionBlocks?.Last();
+                                if (eb is Beef0004)
+                                {
+                                    var eb4 = eb as Beef0004;
+                                    if (eb4.MFTInformation.MFTEntryNumber != null)
+                                    {
+                                        xml?.WriteElementString("TargetMFTEntryNumber", $"0x{eb4.MFTInformation.MFTEntryNumber.Value.ToString("X")}");
+                                    }
+
+                                    if (eb4.MFTInformation.MFTSequenceNumber != null)
+                                    {
+                                        xml?.WriteElementString("TargetMFTSequenceNumber", $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}");
+                                    }
+                                }
+                            }
+                        }
+
+                        var tnb = processedFile.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
+
+                        if (tnb != null)
+                        {
+                            var tnbBlock = tnb as TrackerDataBaseBlock;
+
+                            xml?.WriteElementString("MachineID", tnbBlock?.MachineId);
+                            xml?.WriteElementString("MachineMACAddress", tnbBlock?.MacAddress);
+                            xml?.WriteElementString("MACVendor", GetVendorFromMac(tnbBlock?.MacAddress));
+                            xml?.WriteElementString("TrackerCreatedOn", tnbBlock?.CreationTime.ToString());
+                        }
+
+
+                        var ebPresent = string.Empty;
+
+                        if (processedFile.ExtraBlocks.Count > 0)
+                        {
+                            var names = new List<string>();
+
+                            foreach (var extraDataBase in processedFile.ExtraBlocks)
+                            {
+                                names.Add(extraDataBase.GetType().Name);
+                            }
+
+                            ebPresent = string.Join(", ", names);
+                        }
+                        
+                        xml?.WriteElementString("ExtraBlocksPresent", ebPresent);
+
+                        xml.WriteEndElement();
+
+
+
+
+                        if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
+                        {
+                            SaveXML(processedFile, _fluentCommandLineParser.Object.XmlDirectory);
+                        }
+                    }
+
+
+                    //Close CSV stuff
+                    sw?.Flush();
+                    sw?.Close();
+
+                    //Close XML
+                    xml?.WriteEndElement();
+                    xml?.WriteEndDocument();
+                    xml?.Flush();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(
+                        $"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. Check permissions and try again. Exiting");
+                    
+                }
+            }
+
             
-            _sw?.Flush();
-            _sw?.Close();
+            
         }
 
         private static CsvOut GetCsvFormat(LnkFile lnk)
@@ -422,6 +606,29 @@ namespace LnkCmd
             }
         }
 
+        private static void SaveXML(LnkFile lnk, string outDir)
+        {
+            try
+            {
+                if (Directory.Exists(outDir) == false)
+                {
+                    Directory.CreateDirectory(outDir);
+                }
+
+                var outName =
+                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(lnk.SourceFile)}.xml";
+                var outFile = Path.Combine(outDir, outName);
+
+                var o = GetCsvFormat(lnk);
+
+                File.WriteAllText(outFile, o.ToXml());
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Error exporting XML for '{lnk.SourceFile}'. Error: {ex.Message}");
+            }
+        }
+
         private static void SaveJson(LnkFile lnk, bool pretty, string outDir)
         {
             try
@@ -435,14 +642,11 @@ namespace LnkCmd
                     $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(lnk.SourceFile)}.json";
                 var outFile = Path.Combine(outDir, outName);
 
-                _logger.Info("");
-                _logger.Info($"Saving json output to '{outFile}'");
-
                 DumpToJson(lnk, pretty, outFile);
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error exporting json. Error: {ex.Message}");
+                _logger.Error($"Error exporting json for '{lnk.SourceFile}'. Error: {ex.Message}");
             }
         }
 
@@ -469,7 +673,7 @@ namespace LnkCmd
             return absPath;
         }
 
-        private static LnkFile LoadFile(string lnkFile)
+        private static LnkFile ProcessFile(string lnkFile)
         {
             if (_fluentCommandLineParser.Object.Quiet == false)
             {
@@ -1026,12 +1230,6 @@ namespace LnkCmd
 
                 sw.Stop();
 
-                if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
-                {
-                    SaveJson(lnk, _fluentCommandLineParser.Object.JsonPretty,
-                        _fluentCommandLineParser.Object.JsonDirectory);
-                }
-
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
                     _logger.Info("");
@@ -1136,6 +1334,8 @@ namespace LnkCmd
         public bool NoTargetIDList { get; set; }
         public bool NoExtraBlocks { get; set; }
         public string CsvFile { get; set; }
+        public string XmlDirectory { get; set; }
+        public string xHtmlDirectory { get; set; }
 
           public bool Quiet { get; set; }
 

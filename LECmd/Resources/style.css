@@ -1,0 +1,463 @@
+﻿/* Report styling created by: Devon Ackerman */
+/*                  Last updated: 2016.02.14 */
+
+Container {
+	width: 1400px;
+	height: auto;
+	border: medium #146B99 solid;
+	resize: both;
+	overflow: auto;
+	min-width: 50px;  /* min-width  */
+	min-height: 50px; /* min-height */
+	display: block;
+	padding: 0;
+	margin: 10px;
+	background-color: #E9F0F4;
+}
+
+Container:before {
+  display: block;
+  width: auto;
+  font-weight: bold;
+  font-size: 24px;
+  content: ".LNK File";
+  background-color: #146B99;
+  color: #F18C14;
+  padding: 2px 0 0 2px;
+  margin: 0;
+}
+
+SourceFile {
+  display: block;
+  width: auto;
+  font-weight: bold;
+  font-size: 18px;
+  content: ".LNK File";
+  background-color: #146B99;
+  color: #FFBD6F;
+  padding: 2px 0 0 20px;
+  margin: 0;
+}
+    
+SourceCreated, SourceModified, SourceAccessed, TargetCreated, TargetModified, TargetAccessed, FileSize, RelativePath, WorkingDirectory, FileAttributes, HeaderFlags, DriveType, DriveSerialNumber, DriveLabel, LocalPath, CommonPath, TargetIDAbsolutePath, TargetMFTEntryNumber, TargetMFTSequenceNumber, MachineID, MachineMACAddress, MACVendor, TrackerCreatedOn, ExtraBlocksPresent {
+	display: block;
+	width: auto;
+	color: #043F5F;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: normal;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: left;
+	padding: 2px 0 0 30px;
+	margin: 4px 0 4px 0;
+}
+
+SourceCreated:before {
+	content: "Source Created:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 20px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+SourceCreated:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+SourceModified:before {
+	content: "Source Modified:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 15px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+SourceModified:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+SourceAccessed:before {
+	content: "Source Accessed:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+SourceAccessed:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+TargetCreated:before {
+	content: "Target Created:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 23px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetCreated:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+TargetModified:before {
+	content: "Target Modified:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 18px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetModified:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+TargetAccessed:before {
+	content: "Source Accessed:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetAccessed:after {
+	content: " (UTC)";
+	color: #A6A8A9;
+}
+
+FileSize:before {
+	content: "File Size:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+FileSize:after {
+	content: " (bytes)";
+	color: #A6A8A9;
+}
+
+RelativePath:before {
+	content: "Relative Path:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+WorkingDirectory:before {
+	content: "Working Directory:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+FileAttributes:before {
+	content: "File Attributes:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+HeaderFlags:before {
+	content: "Header Flags:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+DriveType:before {
+	content: "Drive Type:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+DriveSerialNumber:before {
+	content: "Drive Serial Number:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+DriveLabel:before {
+	content: "Drive Label:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+LocalPath:before {
+	content: "Local Path:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+CommonPath:before {
+	content: "Common Path:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetIDAbsolutePath:before {
+	content: "TargetID Absolute Path:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetMFTEntryNumber {
+	color: maroon;	
+}
+
+TargetMFTEntryNumber:before {
+	content: "Target $MFT Entry Number:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+TargetMFTSequenceNumber {
+	color: maroon;	
+}
+
+TargetMFTSequenceNumber:before {
+	content: "Target $MFT Sequence Number:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+MachineID:before {
+	content: "MachineID:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+MachineMACAddress:before {
+	content: "Machine MAC Address:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+MACVendor:before {
+	content: "MAC Vendor:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+MACVendor:after {
+	content: " (vendor not included in source .lnk file, auto-resolved by LECmd for end-user upon parsing)";
+	color: #A6A8A9;
+}
+
+TrackerCreatedOn:before {
+	content: "Tracker Created On:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}
+
+ExtraBlocksPresent:before {
+	content: "Extra Blocks Present:";
+	display: inline;
+	letter-spacing: 1pt;
+	line-height: 1;
+	word-spacing: 2pt;
+	font-weight: bold;
+	font-size: 12px;
+	font-family: verdana, sans-serif;
+	text-align: right;
+	text-decoration: underline;
+	padding: 2px 10px 0 2px;
+	margin: 2px 0 4px 0;
+}

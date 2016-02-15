@@ -86,5 +86,69 @@ namespace LECmd.Properties {
                 return ResourceManager.GetString("MACs", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /*! normalize.css v3.0.3 | MIT License | github.com/necolas/normalize.css */
+        ///
+        ////**
+        /// * 1. Set default font family to sans-serif.
+        /// * 2. Prevent iOS and IE text size adjust after device orientation change,
+        /// *    without disabling user zoom.
+        /// */
+        ///
+        ///html {
+        ///  font-family: sans-serif; /* 1 */
+        ///  -ms-text-size-adjust: 100%; /* 2 */
+        ///  -webkit-text-size-adjust: 100%; /* 2 */
+        ///}
+        ///
+        ////**
+        /// * Remove default margin.
+        /// */
+        ///
+        ///body {
+        ///  margin: 0;
+        ///}
+        ///
+        ////* HTML5 display definitions
+        ///   ================================ [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string normalize {
+            get {
+                return ResourceManager.GetString("normalize", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to /* Report styling created by: Devon Ackerman */
+        ////*                  Last updated: 2016.02.14 */
+        ///
+        ///Container {
+        ///	width: 1400px;
+        ///	height: auto;
+        ///	border: medium #146B99 solid;
+        ///	resize: both;
+        ///	overflow: auto;
+        ///	min-width: 50px;  /* min-width  */
+        ///	min-height: 50px; /* min-height */
+        ///	display: block;
+        ///	padding: 0;
+        ///	margin: 10px;
+        ///	background-color: #E9F0F4;
+        ///}
+        ///
+        ///Container:before {
+        ///  display: block;
+        ///  width: auto;
+        ///  font-weight: bold;
+        ///  font-size: 24px;
+        ///  content: &quot;.LNK File&quot;;
+        ///  background-color: #1 [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string style {
+            get {
+                return ResourceManager.GetString("style", resourceCulture);
+            }
+        }
     }
 }

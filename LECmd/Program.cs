@@ -327,7 +327,6 @@ namespace LnkCmd
                     {
                         _fluentCommandLineParser.Object.CsvFile = Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
                         _logger.Info($"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
-                        _logger.Info("");
 
                         try
                         {
@@ -344,30 +343,35 @@ namespace LnkCmd
                     
                     if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
                     {
-                        _logger.Info("");
                         _logger.Info($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
-                        _logger.Info("");
                     }
                     if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                     {
-                        _logger.Info("");
                         _logger.Info($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
-                        _logger.Info("");
                     }
 
                     XmlTextWriter xml = null;
 
                     if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)
                     {
-                        _logger.Info("");
-                        _logger.Info($"Saving xhtml output to '{_fluentCommandLineParser.Object.xHtmlDirectory}'");
-                        _logger.Info("");
+                        if (Directory.Exists(_fluentCommandLineParser.Object.xHtmlDirectory) == false)
+                        {
+                            Directory.CreateDirectory(_fluentCommandLineParser.Object.xHtmlDirectory);
+                        }
+
+                        File.WriteAllText(Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, "normalize.css"), Resources.normalize);
+                        File.WriteAllText(Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, "style.css"), Resources.style);
 
                         var outName =
-                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\","_").Replace(@"\", "_")}.xhtml";
+                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_LECmd_Output_for{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\","_").Replace(@"\", "_")}.xhtml";
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, outName);
 
+                        _logger.Info($"Saving xhtml output to '{outFile}'");
+
                         xml = new XmlTextWriter(outFile,Encoding.UTF8);
+                        xml.Formatting = Formatting.Indented;
+                        xml.Indentation = 4;
+
                         xml.WriteStartDocument();
 
                         xml.WriteProcessingInstruction("xml-stylesheet", "href=\"normalize.css\"");
@@ -397,7 +401,7 @@ namespace LnkCmd
                         }
 
                         //XHTML
-                        xml.WriteStartElement("Container");
+                        xml?.WriteStartElement("Container");
                         xml?.WriteElementString("SourceFile",processedFile.SourceFile);
                         xml?.WriteElementString("SourceCreated", processedFile.SourceCreated.ToString());
                         xml?.WriteElementString("SourceModified", processedFile.SourceModified.ToString());
@@ -474,7 +478,7 @@ namespace LnkCmd
                         
                         xml?.WriteElementString("ExtraBlocksPresent", ebPresent);
 
-                        xml.WriteEndElement();
+                        xml?.WriteEndElement();
 
 
 

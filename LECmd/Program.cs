@@ -402,81 +402,35 @@ namespace LnkCmd
 
                         //XHTML
                         xml?.WriteStartElement("Container");
-                        xml?.WriteElementString("SourceFile",processedFile.SourceFile);
-                        xml?.WriteElementString("SourceCreated", processedFile.SourceCreated.ToString());
-                        xml?.WriteElementString("SourceModified", processedFile.SourceModified.ToString());
-                        xml?.WriteElementString("SourceAccessed", processedFile.SourceAccessed.ToString());
-                        xml?.WriteElementString("TargetCreated", processedFile.Header.TargetCreationDate.ToString());
-                        xml?.WriteElementString("TargetModified", processedFile.Header.TargetModificationDate.ToString());
-                        xml?.WriteElementString("TargetAccessed", processedFile.Header.TargetLastAccessedDate.ToString());
-                        xml?.WriteElementString("FileSize", processedFile.Header.FileSize.ToString());
-                        xml?.WriteElementString("RelativePath", processedFile.RelativePath);
-                        xml?.WriteElementString("WorkingDirectory", processedFile.WorkingDirectory);
-                        xml?.WriteElementString("FileAttributes", processedFile.Header.FileAttributes.ToString());
-                        xml?.WriteElementString("HeaderFlags", processedFile.Header.DataFlags.ToString());
-                        xml?.WriteElementString("DriveType", processedFile.VolumeInfo?.DriveType.ToString());
-                        xml?.WriteElementString("DriveSerialNumber", processedFile.VolumeInfo?.DriveSerialNumber);
-                        xml?.WriteElementString("DriveLabel", processedFile.VolumeInfo?.VolumeLabel);
-                        xml?.WriteElementString("LocalPath", processedFile.LocalPath);
-                        xml?.WriteElementString("CommonPath", processedFile.CommonPath);
-
-                        if (processedFile.TargetIDs?.Count > 0)
-                        {
-                            xml?.WriteElementString("TargetIDAbsolutePath", GetAbsolutePathFromTargetIDs(processedFile.TargetIDs));
-                        }
-
-
-                        if (processedFile.TargetIDs?.Count > 0)
-                        {
-                            var si = processedFile.TargetIDs.Last();
-
-                            if (si.ExtensionBlocks?.Count > 0)
-                            {
-                                var eb = si.ExtensionBlocks?.Last();
-                                if (eb is Beef0004)
-                                {
-                                    var eb4 = eb as Beef0004;
-                                    if (eb4.MFTInformation.MFTEntryNumber != null)
-                                    {
-                                        xml?.WriteElementString("TargetMFTEntryNumber", $"0x{eb4.MFTInformation.MFTEntryNumber.Value.ToString("X")}");
-                                    }
-
-                                    if (eb4.MFTInformation.MFTSequenceNumber != null)
-                                    {
-                                        xml?.WriteElementString("TargetMFTSequenceNumber", $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}");
-                                    }
-                                }
-                            }
-                        }
-
-                        var tnb = processedFile.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
-
-                        if (tnb != null)
-                        {
-                            var tnbBlock = tnb as TrackerDataBaseBlock;
-
-                            xml?.WriteElementString("MachineID", tnbBlock?.MachineId);
-                            xml?.WriteElementString("MachineMACAddress", tnbBlock?.MacAddress);
-                            xml?.WriteElementString("MACVendor", GetVendorFromMac(tnbBlock?.MacAddress));
-                            xml?.WriteElementString("TrackerCreatedOn", tnbBlock?.CreationTime.ToString());
-                        }
-
-
-                        var ebPresent = string.Empty;
-
-                        if (processedFile.ExtraBlocks.Count > 0)
-                        {
-                            var names = new List<string>();
-
-                            foreach (var extraDataBase in processedFile.ExtraBlocks)
-                            {
-                                names.Add(extraDataBase.GetType().Name);
-                            }
-
-                            ebPresent = string.Join(", ", names);
-                        }
+                        xml?.WriteElementString("SourceFile",o.SourceFile);
+                        xml?.WriteElementString("SourceCreated", o.SourceCreated.ToString());
+                        xml?.WriteElementString("SourceModified", o.SourceModified.ToString());
+                        xml?.WriteElementString("SourceAccessed", o.SourceAccessed.ToString());
+                        xml?.WriteElementString("TargetCreated", o.TargetCreated.ToString());
+                        xml?.WriteElementString("TargetModified", o.TargetModified.ToString());
+                        xml?.WriteElementString("TargetAccessed", o.TargetModified.ToString());
+                        xml?.WriteElementString("FileSize", o.FileSize.ToString());
+                        xml?.WriteElementString("RelativePath", o.RelativePath);
+                        xml?.WriteElementString("WorkingDirectory", o.WorkingDirectory);
+                        xml?.WriteElementString("FileAttributes", o.FileAttributes);
+                        xml?.WriteElementString("HeaderFlags", o.HeaderFlags.ToString());
+                        xml?.WriteElementString("DriveType", o.DriveType.ToString());
+                        xml?.WriteElementString("DriveSerialNumber", o.DriveSerialNumber);
+                        xml?.WriteElementString("DriveLabel", o.DriveLabel);
+                        xml?.WriteElementString("LocalPath", o.LocalPath);
+                        xml?.WriteElementString("CommonPath", o.CommonPath);
                         
-                        xml?.WriteElementString("ExtraBlocksPresent", ebPresent);
+                        xml?.WriteElementString("TargetIDAbsolutePath", o.TargetIDAbsolutePath);
+
+                        xml?.WriteElementString("TargetMFTEntryNumber", $"{o.TargetMFTEntryNumber}");
+                        xml?.WriteElementString("TargetMFTSequenceNumber", $"{o.TargetMFTSequenceNumber}");
+
+                        xml?.WriteElementString("MachineID", o.MachineID);
+                        xml?.WriteElementString("MachineMACAddress", o.MACVendor);
+                        xml?.WriteElementString("MACVendor", o.MACVendor);
+                        xml?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn.ToString());
+                        
+                        xml?.WriteElementString("ExtraBlocksPresent", o.ExtraBlocksPresent);
 
                         xml?.WriteEndElement();
 

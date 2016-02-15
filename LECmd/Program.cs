@@ -63,6 +63,9 @@ namespace LnkCmd
 
         }
 
+        private static CsvWriter _csv = null;
+        private static StreamWriter _sw = null;
+
         private static void Main(string[] args)
         {
             LoadMACs();
@@ -134,7 +137,7 @@ namespace LnkCmd
 
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.csv"" -q" + "\r\n\t " +
+                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.tsv"" -q" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
                          @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t ";
 
@@ -186,17 +189,26 @@ namespace LnkCmd
             _logger.Info("");
             _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}");
 
-            CsvWriter _csv = null;
+            
 
             if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
             {
+                if (string.IsNullOrEmpty(Path.GetFileName(_fluentCommandLineParser.Object.CsvFile)))
+                {
+                    _logger.Error($"'{_fluentCommandLineParser.Object.CsvFile}' is not a file. Please specify a file to save results to. Exiting");
+                    return;
+                }
+
                 try
                 {
-                    var sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile)
-                    {
-                        AutoFlush = true
-                    };
-                    _csv = new CsvWriter(sw);
+                    _logger.Info("");
+                    _fluentCommandLineParser.Object.CsvFile = Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
+                    _logger.Info($"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
+
+
+                    _sw  = new StreamWriter(_fluentCommandLineParser.Object.CsvFile);
+                    
+                    _csv = new CsvWriter(_sw);
                     _csv.Configuration.Delimiter = $"{'\t'}";
                     _csv.WriteHeader(typeof(CsvOut));
                 }
@@ -257,10 +269,10 @@ namespace LnkCmd
                     lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, mask,
                         SearchOption.AllDirectories);
                 }
-                catch (UnauthorizedAccessException)
+                catch (UnauthorizedAccessException ua)
                 {
                     _logger.Error(
-                        $"Unable to access '{_fluentCommandLineParser.Object.Directory}'. Are you running as an administrator?");
+                        $"Unable to access '{_fluentCommandLineParser.Object.Directory}'. Error message: {ua.Message}");
                     return;
                 }
                 catch (Exception ex)
@@ -305,31 +317,34 @@ namespace LnkCmd
                     }
                 }
             }
+
+            
+            _sw?.Flush();
+            _sw?.Close();
         }
 
         private static CsvOut GetCsvFormat(LnkFile lnk)
         {
-            var csOut = new CsvOut();
-            csOut.SourceFile = lnk.SourceFile;
-            csOut.SourceCreated = lnk.SourceCreated;
-            csOut.SourceModified = lnk.SourceModified;
-            csOut.SourceAccessed = lnk.SourceAccessed;
+            var csOut = new CsvOut
+            {
+                SourceFile = lnk.SourceFile,
+                SourceCreated = lnk.SourceCreated,
+                SourceModified = lnk.SourceModified,
+                SourceAccessed = lnk.SourceAccessed,
+                TargetCreated = lnk.Header.TargetCreationDate,
+                TargetModified = lnk.Header.TargetModificationDate,
+                TargetAccessed = lnk.Header.TargetLastAccessedDate,
+                CommonPath = lnk.CommonPath,
+                DriveLabel = lnk.VolumeInfo?.VolumeLabel,
+                DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber,
+                DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType),
+                FileAttributes = lnk.Header.FileAttributes.ToString(),
+                FileSize = lnk.Header.FileSize,
+                HeaderFlags = lnk.Header.DataFlags.ToString(),
+                LocalPath = lnk.LocalPath,
+                RelativePath = lnk.RelativePath
+            };
 
-            csOut.TargetCreated = lnk.Header.TargetCreationDate;
-            csOut.TargetModified = lnk.Header.TargetModificationDate;
-            csOut.TargetAccessed = lnk.Header.TargetLastAccessedDate;
-
-            csOut.CommonPath = lnk.CommonPath;
-            csOut.DriveLabel = lnk.VolumeInfo?.VolumeLabel;
-            csOut.DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber;
-            csOut.DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType);
-
-            csOut.FileAttributes = lnk.Header.FileAttributes.ToString();
-            csOut.FileSize = lnk.Header.FileSize;
-            csOut.HeaderFlags = lnk.Header.DataFlags.ToString();
-            csOut.LocalPath = lnk.LocalPath;
-
-            csOut.RelativePath = lnk.RelativePath;
             if (lnk.TargetIDs?.Count > 0)
             {
                 csOut.TargetIDAbsolutePath = GetAbsolutePathFromTargetIDs(lnk.TargetIDs);

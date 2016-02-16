@@ -232,10 +232,10 @@ namespace LnkCmd
                         _processedFiles.Add(lnk);
                     }
                 }
-                catch (UnauthorizedAccessException)
+                catch (UnauthorizedAccessException ua)
                 {
                     _logger.Error(
-                        $"Unable to access '{_fluentCommandLineParser.Object.File}'. Are you running as an administrator?");
+                        $"Unable to access '{_fluentCommandLineParser.Object.File}'. Are you running as an administrator? Error: {ua.Message}");
                     return;
                 }
                 catch (Exception ex)
@@ -326,7 +326,7 @@ namespace LnkCmd
                     {
                         _fluentCommandLineParser.Object.CsvFile =
                             Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
-                        _logger.Info(
+                        _logger.Warn(
                             $"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
 
                         try
@@ -345,11 +345,11 @@ namespace LnkCmd
 
                     if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
                     {
-                        _logger.Info($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
+                        _logger.Warn($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
                     }
                     if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                     {
-                        _logger.Info($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
+                        _logger.Warn($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
                     }
 
                     XmlTextWriter xml = null;
@@ -369,7 +369,7 @@ namespace LnkCmd
 
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, outDir, "index.xhtml");
 
-                        _logger.Info($"Saving HTML output to '{outFile}'");
+                        _logger.Warn($"Saving HTML output to '{outFile}'");
 
                         xml = new XmlTextWriter(outFile, Encoding.UTF8)
                         {
@@ -441,7 +441,7 @@ namespace LnkCmd
 
                         if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                         {
-                            SaveXML(processedFile, _fluentCommandLineParser.Object.XmlDirectory);
+                            SaveXML(o, _fluentCommandLineParser.Object.XmlDirectory);
                         }
                     }
 
@@ -458,7 +458,7 @@ namespace LnkCmd
                 catch (Exception ex)
                 {
                     _logger.Error(
-                        $"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. Check permissions and try again. Exiting");
+                        $"Error exporting data! Error: {ex.Message}");
                 }
             }
         }
@@ -562,7 +562,7 @@ namespace LnkCmd
             }
         }
 
-        private static void SaveXML(LnkFile lnk, string outDir)
+        private static void SaveXML(CsvOut csout, string outDir)
         {
             try
             {
@@ -572,16 +572,15 @@ namespace LnkCmd
                 }
 
                 var outName =
-                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(lnk.SourceFile)}.xml";
+                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(csout.SourceFile)}.xml";
                 var outFile = Path.Combine(outDir, outName);
 
-                var o = GetCsvFormat(lnk);
 
-                File.WriteAllText(outFile, o.ToXml());
+                File.WriteAllText(outFile, csout.ToXml());
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error exporting XML for '{lnk.SourceFile}'. Error: {ex.Message}");
+                _logger.Error($"Error exporting XML for '{csout.SourceFile}'. Error: {ex.Message}");
             }
         }
 
@@ -1198,7 +1197,7 @@ namespace LnkCmd
                 }
 
                 _logger.Info(
-                    $"---------- Processed '{lnk.SourceFile}' in {sw.Elapsed.TotalSeconds:N4} seconds ----------");
+                    $"---------- Processed '{lnk.SourceFile}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
 
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {

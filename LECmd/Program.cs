@@ -652,9 +652,14 @@ namespace LnkCmd
                     _logger.Info("");
 
                     _logger.Warn("--- Header ---");
-                    _logger.Info($"  Target created:  {lnk.Header.TargetCreationDate}");
-                    _logger.Info($"  Target modified: {lnk.Header.TargetLastAccessedDate}");
-                    _logger.Info($"  Target accessed: {lnk.Header.TargetModificationDate}");
+
+                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString();
+                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString();
+                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString();
+
+                    _logger.Info($"  Target created:  {tc}");
+                    _logger.Info($"  Target modified: {tm}");
+                    _logger.Info($"  Target accessed: {ta}");
                     _logger.Info("");
                     _logger.Info($"  File size: {lnk.Header.FileSize:N0}");
                     _logger.Info($"  Flags: {lnk.Header.DataFlags}");

@@ -431,7 +431,7 @@ namespace LnkCmd
                         xml?.WriteElementString("TargetMFTSequenceNumber", $"{o.TargetMFTSequenceNumber}");
 
                         xml?.WriteElementString("MachineID", o.MachineID);
-                        xml?.WriteElementString("MachineMACAddress", o.MACVendor);
+                        xml?.WriteElementString("MachineMACAddress", o.MachineMACAddress);
                         xml?.WriteElementString("MACVendor", o.MACVendor);
                         xml?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn.ToString());
 
@@ -471,9 +471,9 @@ namespace LnkCmd
                 SourceCreated = lnk.SourceCreated,
                 SourceModified = lnk.SourceModified,
                 SourceAccessed = lnk.SourceAccessed,
-                TargetCreated = lnk.Header.TargetCreationDate,
-                TargetModified = lnk.Header.TargetModificationDate,
-                TargetAccessed = lnk.Header.TargetLastAccessedDate,
+                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ? (DateTimeOffset?) null:lnk.Header.TargetCreationDate,
+                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? (DateTimeOffset?)null : lnk.Header.TargetModificationDate,
+                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? (DateTimeOffset?)null : lnk.Header.TargetLastAccessedDate,
                 CommonPath = lnk.CommonPath,
                 DriveLabel = lnk.VolumeInfo?.VolumeLabel,
                 DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber,

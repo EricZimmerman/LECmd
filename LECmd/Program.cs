@@ -29,6 +29,8 @@ namespace LnkCmd
         private const string SSLicenseFile = @"D:\SSLic.txt";
         private static Logger _logger;
 
+        private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff K";
+
         private static FluentCommandLineParser<ApplicationArguments> _fluentCommandLineParser;
 
         private static List<string> _failedFiles;
@@ -144,6 +146,16 @@ namespace LnkCmd
                 .WithDescription(
                     "When true, Extra blocks information will NOT be displayed. Default is false.").SetDefault(false);
 
+            _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
+    .As("dt")
+    .WithDescription(
+        "The custom date/time format to use when displaying time stamps. Default is: yyyy-MM-dd HH:mm:ss K").SetDefault("yyyy-MM-dd HH:mm:ss K");
+
+            _fluentCommandLineParser.Setup(arg => arg.PreciseTimestamps)
+   .As("mp")
+   .WithDescription(
+       "When true, display higher precision for time stamps. Default is false").SetDefault(false);
+
 
             var header =
                 $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
@@ -206,6 +218,10 @@ namespace LnkCmd
             _logger.Info("");
             _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}\r\n");
 
+            if (_fluentCommandLineParser.Object.PreciseTimestamps)
+            {
+                _fluentCommandLineParser.Object.DateTimeFormat = _preciseTimeFormat;
+            }
 
             _processedFiles = new List<LnkFile>();
 
@@ -241,7 +257,7 @@ namespace LnkCmd
                 catch (Exception ex)
                 {
                     _logger.Error(
-                        $"Error getting lnk files in '{_fluentCommandLineParser.Object.Directory}'. Error: {ex.Message}");
+                        $"Error processing file '{_fluentCommandLineParser.Object.Directory}' Please send it to saericzimmerman@gmail.com. Error: {ex.Message}");
                     return;
                 }
             }
@@ -408,12 +424,14 @@ namespace LnkCmd
                         //XHTML
                         xml?.WriteStartElement("Container");
                         xml?.WriteElementString("SourceFile", o.SourceFile);
-                        xml?.WriteElementString("SourceCreated", o.SourceCreated.ToString());
-                        xml?.WriteElementString("SourceModified", o.SourceModified.ToString());
-                        xml?.WriteElementString("SourceAccessed", o.SourceAccessed.ToString());
-                        xml?.WriteElementString("TargetCreated", o.TargetCreated.ToString());
-                        xml?.WriteElementString("TargetModified", o.TargetModified.ToString());
-                        xml?.WriteElementString("TargetAccessed", o.TargetModified.ToString());
+                        xml?.WriteElementString("SourceCreated", o.SourceCreated);
+                        xml?.WriteElementString("SourceModified", o.SourceModified);
+                        xml?.WriteElementString("SourceAccessed", o.SourceAccessed);
+
+                        xml?.WriteElementString("TargetCreated", o.TargetCreated);
+                        xml?.WriteElementString("TargetModified", o.TargetModified);
+                        xml?.WriteElementString("TargetAccessed", o.TargetModified);
+
                         xml?.WriteElementString("FileSize", o.FileSize.ToString());
                         xml?.WriteElementString("RelativePath", o.RelativePath);
                         xml?.WriteElementString("WorkingDirectory", o.WorkingDirectory);
@@ -433,7 +451,8 @@ namespace LnkCmd
                         xml?.WriteElementString("MachineID", o.MachineID);
                         xml?.WriteElementString("MachineMACAddress", o.MachineMACAddress);
                         xml?.WriteElementString("MACVendor", o.MACVendor);
-                        xml?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn.ToString());
+
+                        xml?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn);
 
                         xml?.WriteElementString("ExtraBlocksPresent", o.ExtraBlocksPresent);
 
@@ -468,12 +487,12 @@ namespace LnkCmd
             var csOut = new CsvOut
             {
                 SourceFile = lnk.SourceFile,
-                SourceCreated = lnk.SourceCreated,
-                SourceModified = lnk.SourceModified,
-                SourceAccessed = lnk.SourceAccessed,
-                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ? (DateTimeOffset?) null:lnk.Header.TargetCreationDate,
-                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? (DateTimeOffset?)null : lnk.Header.TargetModificationDate,
-                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? (DateTimeOffset?)null : lnk.Header.TargetLastAccessedDate,
+                SourceCreated = lnk.SourceCreated.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                SourceModified = lnk.SourceModified.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                SourceAccessed = lnk.SourceAccessed.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? string.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 CommonPath = lnk.CommonPath,
                 DriveLabel = lnk.VolumeInfo?.VolumeLabel,
                 DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber,
@@ -515,7 +534,7 @@ namespace LnkCmd
             {
                 var tnbBlock = tnb as TrackerDataBaseBlock;
 
-                csOut.TrackerCreatedOn = tnbBlock?.CreationTime;
+                csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
 
                 csOut.MachineID = tnbBlock?.MachineId;
                 csOut.MachineMACAddress = tnbBlock?.MacAddress;
@@ -646,16 +665,16 @@ namespace LnkCmd
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
                     _logger.Error($"Source file: {lnk.SourceFile}");
-                    _logger.Info($"  Source created:  {lnk.SourceCreated}");
-                    _logger.Info($"  Source modified: {lnk.SourceModified}");
-                    _logger.Info($"  Source accessed: {lnk.SourceAccessed}");
+                    _logger.Info($"  Source created:  {lnk.SourceCreated.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                    _logger.Info($"  Source modified: {lnk.SourceModified.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                    _logger.Info($"  Source accessed: {lnk.SourceAccessed.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                     _logger.Info("");
 
                     _logger.Warn("--- Header ---");
 
-                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString();
-                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString();
-                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString();
+                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
+                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
+                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
 
                     _logger.Info($"  Target created:  {tc}");
                     _logger.Info($"  Target modified: {tm}");
@@ -786,7 +805,7 @@ namespace LnkCmd
                                     var b32 = shellBag as ShellBag0X32;
 
                                     _logger.Info($"    Short name: {b32.ShortName}");
-                                    _logger.Info($"    Modified: {b32.LastModificationTime}");
+                                    _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
 
                                     var extensionNumber32 = 0;
                                     if (b32.ExtensionBlocks.Count > 0)
@@ -807,8 +826,8 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime}");
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(
@@ -819,7 +838,7 @@ namespace LnkCmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1}, Filetime 2: {b25.FileTime2}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -841,7 +860,7 @@ namespace LnkCmd
                                     var b3x = shellBag as ShellBag0X31;
 
                                     _logger.Info($"    Short name: {b3x.ShortName}");
-                                    _logger.Info($"    Modified: {b3x.LastModificationTime}");
+                                    _logger.Info($"    Modified: {b3x.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
 
                                     var extensionNumber = 0;
                                     if (b3x.ExtensionBlocks.Count > 0)
@@ -862,8 +881,8 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime}");
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(
@@ -874,7 +893,7 @@ namespace LnkCmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1}, Filetime 2: {b25.FileTime2}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -984,7 +1003,7 @@ namespace LnkCmd
                                 case "SHELLBAG0X74":
                                     var b74 = shellBag as ShellBag0X74;
 
-                                    _logger.Info($"    Modified: {b74.LastModificationTime}");
+                                    _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
 
                                     var extensionNumber74 = 0;
                                     if (b74.ExtensionBlocks.Count > 0)
@@ -1005,8 +1024,8 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime}");
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(
@@ -1017,7 +1036,7 @@ namespace LnkCmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1}, Filetime 2: {b25.FileTime2}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -1169,7 +1188,7 @@ namespace LnkCmd
                                     _logger.Info($"   Machine ID: {tdb.MachineId}");
                                     _logger.Info($"   MAC Address: {tdb.MacAddress}");
                                     _logger.Info($"   MAC Vendor: {GetVendorFromMac(tdb.MacAddress)}");
-                                    _logger.Info($"   Creation: {tdb.CreationTime}");
+                                    _logger.Info($"   Creation: {tdb.CreationTime.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
                                     _logger.Info("");
                                     _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
                                     _logger.Info($"   Volume Droid Birth: {tdb.VolumeDroidBirth}");
@@ -1263,12 +1282,12 @@ namespace LnkCmd
     public sealed class CsvOut
     {
         public string SourceFile { get; set; }
-        public DateTimeOffset SourceCreated { get; set; }
-        public DateTimeOffset SourceModified { get; set; }
-        public DateTimeOffset SourceAccessed { get; set; }
-        public DateTimeOffset? TargetCreated { get; set; }
-        public DateTimeOffset? TargetModified { get; set; }
-        public DateTimeOffset? TargetAccessed { get; set; }
+        public string SourceCreated { get; set; }
+        public string SourceModified { get; set; }
+        public string SourceAccessed { get; set; }
+        public string TargetCreated { get; set; }
+        public string TargetModified { get; set; }
+        public string  TargetAccessed { get; set; }
         public int FileSize { get; set; }
         public string RelativePath { get; set; }
         public string WorkingDirectory { get; set; }
@@ -1285,7 +1304,7 @@ namespace LnkCmd
         public string MachineID { get; set; }
         public string MachineMACAddress { get; set; }
         public string MACVendor { get; set; }
-        public DateTimeOffset? TrackerCreatedOn { get; set; }
+        public string TrackerCreatedOn { get; set; }
         public string ExtraBlocksPresent { get; set; }
     }
 
@@ -1302,6 +1321,10 @@ namespace LnkCmd
         public string CsvFile { get; set; }
         public string XmlDirectory { get; set; }
         public string xHtmlDirectory { get; set; }
+
+        public string DateTimeFormat { get; set; }
+
+        public bool PreciseTimestamps { get; set; }
 
         public bool Quiet { get; set; }
 

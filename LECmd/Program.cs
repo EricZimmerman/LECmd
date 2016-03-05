@@ -294,7 +294,7 @@ namespace LnkCmd
                     return;
                 }
 
-                _logger.Info($"Found {lnkFiles.Length:N0} lnk files");
+                _logger.Info($"Found {lnkFiles.Length:N0} files");
                 _logger.Info("");
 
                 var sw = new Stopwatch();
@@ -487,9 +487,9 @@ namespace LnkCmd
             var csOut = new CsvOut
             {
                 SourceFile = lnk.SourceFile,
-                SourceCreated = lnk.SourceCreated.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
-                SourceModified = lnk.SourceModified.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
-                SourceAccessed = lnk.SourceAccessed.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                SourceCreated =  lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
+                SourceModified = lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
+                SourceAccessed = lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
                 TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? string.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
@@ -665,9 +665,9 @@ namespace LnkCmd
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
                     _logger.Error($"Source file: {lnk.SourceFile}");
-                    _logger.Info($"  Source created:  {lnk.SourceCreated.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
-                    _logger.Info($"  Source modified: {lnk.SourceModified.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
-                    _logger.Info($"  Source accessed: {lnk.SourceAccessed.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                    _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
+                    _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
+                    _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
                     _logger.Info("");
 
                     _logger.Warn("--- Header ---");
@@ -801,11 +801,20 @@ namespace LnkCmd
 
                             switch (shellBag.GetType().Name.ToUpper())
                             {
+                                case "SHELLBAG0X36":
                                 case "SHELLBAG0X32":
                                     var b32 = shellBag as ShellBag0X32;
 
                                     _logger.Info($"    Short name: {b32.ShortName}");
-                                    _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    if (b32.LastModificationTime.HasValue)
+                                    {
+                                        _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    }
+                                    else
+                                    {
+                                        _logger.Info($"    Modified:");
+                                    }
+                                    
 
                                     var extensionNumber32 = 0;
                                     if (b32.ExtensionBlocks.Count > 0)
@@ -826,8 +835,24 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                if (b4.CreatedOnTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Created:");
+                                                }
+
+                                                if (b4.LastAccessTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Last access: ");
+                                                }
+                                                
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(
@@ -860,7 +885,15 @@ namespace LnkCmd
                                     var b3x = shellBag as ShellBag0X31;
 
                                     _logger.Info($"    Short name: {b3x.ShortName}");
-                                    _logger.Info($"    Modified: {b3x.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    if (b3x.LastModificationTime.HasValue)
+                                    {
+                                        _logger.Info(
+                                            $"    Modified: {b3x.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    }
+                                    else
+                                    {
+                                        _logger.Info($"    Modified:");
+                                    }
 
                                     var extensionNumber = 0;
                                     if (b3x.ExtensionBlocks.Count > 0)
@@ -881,8 +914,24 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                if (b4.CreatedOnTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Created:");
+                                                }
+
+                                                if (b4.LastAccessTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Last access: ");
+                                                }
+                                                
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(
@@ -1003,7 +1052,14 @@ namespace LnkCmd
                                 case "SHELLBAG0X74":
                                     var b74 = shellBag as ShellBag0X74;
 
-                                    _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    if (b74.LastModificationTime.HasValue)
+                                    {
+                                        _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    }
+                                    else
+                                    {
+                                        _logger.Info($"    Modified:");
+                                    }
 
                                     var extensionNumber74 = 0;
                                     if (b74.ExtensionBlocks.Count > 0)
@@ -1024,8 +1080,23 @@ namespace LnkCmd
                                                     _logger.Info($"    Localized name: {b4.LocalisedName}");
                                                 }
 
-                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
-                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                if (b4.CreatedOnTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Created:");
+                                                }
+
+                                                if (b4.LastAccessTime.HasValue)
+                                                {
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                }
+                                                else
+                                                {
+                                                    _logger.Info($"    Last access: ");
+                                                }
                                                 if (b4.MFTInformation.MFTEntryNumber > 0)
                                                 {
                                                     _logger.Info(

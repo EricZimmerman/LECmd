@@ -15011,6 +15011,7 @@
 78-1D-FD	Jabil Inc
 78-1F-DB	Samsung Electronics Co.,Ltd
 78-22-3D	Affirmed Networks
+78-24-AF	ASUSTek COMPUTER INC
 78-25-44	Omnima Limited
 78-25-AD	SAMSUNG ELECTRONICS CO., LTD.
 78-2B-CB	Dell Inc

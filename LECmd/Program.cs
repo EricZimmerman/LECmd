@@ -236,6 +236,8 @@ namespace LnkCmd
                 }
             }
 
+            _failedFiles = new List<string>();
+
             if (_fluentCommandLineParser.Object.File?.Length > 0)
             {
                 LnkFile lnk = null;
@@ -267,8 +269,6 @@ namespace LnkCmd
                 _logger.Info("");
 
                 string[] lnkFiles = null;
-
-                _failedFiles = new List<string>();
 
                 try
                 {

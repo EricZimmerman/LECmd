@@ -103,10 +103,10 @@ namespace LnkCmd
                 .WithDescription(
                     "When true, process all files in directory vs. only files matching *.lnk\r\n").SetDefault(false);
 
-            _fluentCommandLineParser.Setup(arg => arg.CsvFile)
+            _fluentCommandLineParser.Setup(arg => arg.CsvDirectory)
                 .As("csv")
                 .WithDescription(
-                    "File to save CSV (tab separated) formatted results to. Be sure to include the full path in double quotes");
+                    "Directory to save CSV (tab separated) formatted results to. Be sure to include the full path in double quotes");
 
             _fluentCommandLineParser.Setup(arg => arg.XmlDirectory)
                 .As("xml")
@@ -144,7 +144,7 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.NoExtraBlocks)
                 .As("neb")
                 .WithDescription(
-                    "When true, Extra blocks information will NOT be displayed. Default is false.").SetDefault(false);
+                    "When true, Extra blocks information will NOT be displayed. Default is false.\r\n").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")
@@ -164,7 +164,7 @@ namespace LnkCmd
 
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp\Lnk_out.tsv"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
+                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
                          @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t" + 
                          "\r\n\t"+
@@ -225,16 +225,6 @@ namespace LnkCmd
 
             _processedFiles = new List<LnkFile>();
 
-
-            if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
-            {
-                if (string.IsNullOrEmpty(Path.GetFileName(_fluentCommandLineParser.Object.CsvFile)))
-                {
-                    _logger.Error(
-                        $"'{_fluentCommandLineParser.Object.CsvFile}' is not a file. Please specify a file to save results to. Exiting");
-                    return;
-                }
-            }
 
             _failedFiles = new List<string>();
 
@@ -338,16 +328,19 @@ namespace LnkCmd
                     CsvWriter csv = null;
                     StreamWriter sw = null;
 
-                    if (_fluentCommandLineParser.Object.CsvFile?.Length > 0)
+                    if (_fluentCommandLineParser.Object.CsvDirectory?.Length > 0)
                     {
-                        _fluentCommandLineParser.Object.CsvFile =
-                            Path.GetFullPath(_fluentCommandLineParser.Object.CsvFile);
+                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.tsv";
+                        var outFile = Path.Combine(_fluentCommandLineParser.Object.CsvDirectory, outName);
+
+                        _fluentCommandLineParser.Object.CsvDirectory =
+                            Path.GetFullPath(outFile);
                         _logger.Warn(
-                            $"CSV (tab separated) output will be saved to '{_fluentCommandLineParser.Object.CsvFile}'");
+                            $"CSV (tab separated) output will be saved to '{Path.GetFullPath(outFile)}'");
 
                         try
                         {
-                            sw = new StreamWriter(_fluentCommandLineParser.Object.CsvFile);
+                            sw = new StreamWriter(outFile);
                             csv = new CsvWriter(sw);
                             csv.Configuration.Delimiter = $"{'\t'}";
                             csv.WriteHeader(typeof(CsvOut));
@@ -355,7 +348,7 @@ namespace LnkCmd
                         catch (Exception ex)
                         {
                             _logger.Error(
-                                $"Unable to open '{_fluentCommandLineParser.Object.CsvFile}' for writing. CSV export canceled. Error: {ex.Message}");
+                                $"Unable to open '{outFile}' for writing. CSV export canceled. Error: {ex.Message}");
                         }
                     }
 
@@ -412,7 +405,7 @@ namespace LnkCmd
                         catch (Exception ex)
                         {
                             _logger.Error(
-                                $"Error writing record for '{processedFile.SourceFile}' to '{_fluentCommandLineParser.Object.CsvFile}'. Error: {ex.Message}");
+                                $"Error writing record for '{processedFile.SourceFile}' to '{_fluentCommandLineParser.Object.CsvDirectory}'. Error: {ex.Message}");
                         }
 
                         if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
@@ -1389,7 +1382,7 @@ namespace LnkCmd
         public bool AllFiles { get; set; }
         public bool NoTargetIDList { get; set; }
         public bool NoExtraBlocks { get; set; }
-        public string CsvFile { get; set; }
+        public string CsvDirectory { get; set; }
         public string XmlDirectory { get; set; }
         public string xHtmlDirectory { get; set; }
 

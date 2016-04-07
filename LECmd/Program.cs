@@ -330,6 +330,12 @@ namespace LnkCmd
 
                     if (_fluentCommandLineParser.Object.CsvDirectory?.Length > 0)
                     {
+                        if (Directory.Exists(_fluentCommandLineParser.Object.CsvDirectory) == false)
+                        {
+                            _logger.Warn($"'{_fluentCommandLineParser.Object.CsvDirectory} does not exist. Creating...'");
+                            Directory.CreateDirectory(_fluentCommandLineParser.Object.CsvDirectory);
+                        }
+
                         var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.tsv";
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.CsvDirectory, outName);
 
@@ -354,10 +360,19 @@ namespace LnkCmd
 
                     if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
                     {
+                        if (Directory.Exists(_fluentCommandLineParser.Object.JsonDirectory) == false)
+                        {
+                            _logger.Warn($"'{_fluentCommandLineParser.Object.JsonDirectory} does not exist. Creating...'");
+                            Directory.CreateDirectory(_fluentCommandLineParser.Object.JsonDirectory);
+                        }
                         _logger.Warn($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
                     }
                     if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                     {
+                        {
+                            _logger.Warn($"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
+                            Directory.CreateDirectory(_fluentCommandLineParser.Object.XmlDirectory);
+                        }
                         _logger.Warn($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
                     }
 
@@ -365,6 +380,7 @@ namespace LnkCmd
 
                     if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)
                     {
+
                         var outDir = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory,
                             $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_LECmd_Output_for_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\", "_").Replace(@"\", "_")}");
 

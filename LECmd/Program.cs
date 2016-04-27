@@ -370,8 +370,12 @@ namespace LnkCmd
                     if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                     {
                         {
-                            _logger.Warn($"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
-                            Directory.CreateDirectory(_fluentCommandLineParser.Object.XmlDirectory);
+                            if (Directory.Exists(_fluentCommandLineParser.Object.XmlDirectory) == false)
+                            {
+                                _logger.Warn($"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
+                                Directory.CreateDirectory(_fluentCommandLineParser.Object.XmlDirectory);
+                            }
+                            
                         }
                         _logger.Warn($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
                     }
@@ -451,6 +455,7 @@ namespace LnkCmd
                         xml?.WriteElementString("DriveLabel", o.DriveLabel);
                         xml?.WriteElementString("LocalPath", o.LocalPath);
                         xml?.WriteElementString("CommonPath", o.CommonPath);
+                        xml?.WriteElementString("Arguments", o.Arguments);
 
                         xml?.WriteElementString("TargetIDAbsolutePath", o.TargetIDAbsolutePath);
 
@@ -510,7 +515,8 @@ namespace LnkCmd
                 FileSize = lnk.Header.FileSize,
                 HeaderFlags = lnk.Header.DataFlags.ToString(),
                 LocalPath = lnk.LocalPath,
-                RelativePath = lnk.RelativePath
+                RelativePath = lnk.RelativePath,
+                Arguments = lnk.Arguments
             };
 
             if (lnk.TargetIDs?.Count > 0)
@@ -1378,6 +1384,7 @@ namespace LnkCmd
         public string DriveLabel { get; set; }
         public string LocalPath { get; set; }
         public string CommonPath { get; set; }
+        public string Arguments { get; set; }
         public string TargetIDAbsolutePath { get; set; }
         public string TargetMFTEntryNumber { get; set; }
         public string TargetMFTSequenceNumber { get; set; }
@@ -1386,6 +1393,7 @@ namespace LnkCmd
         public string MACVendor { get; set; }
         public string TrackerCreatedOn { get; set; }
         public string ExtraBlocksPresent { get; set; }
+        
     }
 
     internal class ApplicationArguments

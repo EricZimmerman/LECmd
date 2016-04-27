@@ -67,7 +67,7 @@ Container {
 		margin: 0;
 	}
 	    
-	SourceCreated, SourceModified, SourceAccessed, TargetCreated, TargetModified, TargetAccessed, FileSize, RelativePath, WorkingDirectory, FileAttributes, HeaderFlags, DriveType, DriveSerialNumber, DriveLabel, LocalPath, CommonPath, TargetIDAbsolutePath, TargetMFTEntryNumber, TargetMFTSequenceNumber, MachineID, MachineMACAddress, MACVendor, TrackerCreatedOn, ExtraBlocksPresent {
+	SourceCreated, SourceModified, SourceAccessed, TargetCreated, TargetModified, TargetAccessed, FileSize, RelativePath, WorkingDirectory, FileAttributes, HeaderFlags, DriveType, DriveSerialNumber, DriveLabel, LocalPath, CommonPath,Arguments, TargetIDAbsolutePath, TargetMFTEntryNumber, TargetMFTSequenceNumber, MachineID, MachineMACAddress, MACVendor, TrackerCreatedOn, ExtraBlocksPresent {
 		display: block;
 		width: auto;
 		color: #043F5F;
@@ -356,6 +356,20 @@ Container {
 	
 	CommonPath:before {
 		content: "Common Path:";
+		display: inline;
+		letter-spacing: 1pt;
+		line-height: 1;
+		word-spacing: 2pt;
+		font-weight: bold;
+		font-size: 12px;
+		font-family: verdana, sans-serif;
+		text-align: right;
+		text-decoration: underline;
+		padding: 2px 10px 0 2px;
+		margin: 2px 0 4px 0;
+	}
+    Arguments:before {
+		content: "Arguments:";
 		display: inline;
 		letter-spacing: 1pt;
 		line-height: 1;

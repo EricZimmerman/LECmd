@@ -101,7 +101,7 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.AllFiles)
                 .As("all")
                 .WithDescription(
-                    "When true, process all files in directory vs. only files matching *.lnk\r\n").SetDefault(false);
+                    "Process all files in directory vs. only files matching *.lnk\r\n").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.CsvDirectory)
                 .As("csv")
@@ -131,20 +131,20 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.Quiet)
                 .As('q')
                 .WithDescription(
-                    "When true, only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv\r\n")
+                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv\r\n")
                 .SetDefault(false);
 
 
             _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
                 .As("nid")
                 .WithDescription(
-                    "When true, Target ID list details will NOT be displayed. Default is false.").SetDefault(false);
+                    "Suppress Target ID list details from being displayed. Default is false.").SetDefault(false);
 
 
             _fluentCommandLineParser.Setup(arg => arg.NoExtraBlocks)
                 .As("neb")
                 .WithDescription(
-                    "When true, Extra blocks information will NOT be displayed. Default is false.\r\n").SetDefault(false);
+                    "Suppress Extra blocks information from being displayed. Default is false.\r\n").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")
@@ -154,13 +154,14 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.PreciseTimestamps)
    .As("mp")
    .WithDescription(
-       "When true, display higher precision for time stamps. Default is false").SetDefault(false);
+       "Display higher precision for time stamps. Default is false").SetDefault(false);
 
 
             var header =
                 $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
                 "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
                 "\r\nhttps://github.com/EricZimmerman/LECmd";
+                
 
             var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
                          @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
@@ -562,7 +563,7 @@ namespace LnkCmd
 
                 if (si.ExtensionBlocks?.Count > 0)
                 {
-                    var eb = si.ExtensionBlocks?.Last();
+                    var eb = si.ExtensionBlocks.LastOrDefault(t => t is Beef0004);
                     if (eb is Beef0004)
                     {
                         var eb4 = eb as Beef0004;
@@ -885,6 +886,12 @@ namespace LnkCmd
                                                 var b3 = extensionBlock as Beef0003;
                                                 _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
                                             }
+                                            else if (extensionBlock is Beef001a)
+                                            {
+                                                var b3 = extensionBlock as Beef001a;
+                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
+                                            }
+
                                             else
                                             {
                                                 _logger.Info($"    {extensionBlock}");
@@ -963,6 +970,11 @@ namespace LnkCmd
                                             {
                                                 var b3 = extensionBlock as Beef0003;
                                                 _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
+                                            }
+                                            else if (extensionBlock is Beef001a)
+                                            {
+                                                var b3 = extensionBlock as Beef001a;
+                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
                                             }
                                             else
                                             {
@@ -1128,6 +1140,11 @@ namespace LnkCmd
                                             {
                                                 var b3 = extensionBlock as Beef0003;
                                                 _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
+                                            }
+                                            else if (extensionBlock is Beef001a)
+                                            {
+                                                var b3 = extensionBlock as Beef001a;
+                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
                                             }
                                             else
                                             {

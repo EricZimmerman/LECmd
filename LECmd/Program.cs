@@ -1276,7 +1276,7 @@ namespace LnkCmd
                                 case "ShimDataBlock":
                                     var sdb = extraDataBase as ShimDataBlock;
                                     _logger.Warn(">> Shimcache data block");
-                                    _logger.Info($"   LayerName: {sdb.LayerName}");
+                                    _logger.Info($"   Layer name: {sdb.LayerName}");
                                     _logger.Info("");
                                     break;
                                 case "SpecialFolderDataBlock":
@@ -1299,7 +1299,7 @@ namespace LnkCmd
                                     _logger.Info($"   File Droid birth: {tdb.FileDroidBirth}");
                                     _logger.Info("");
                                     break;
-                                case "VistaAndAboveIDListDataBlock":
+                                case "VistaAndAboveIdListDataBlock":
                                     var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
                                     _logger.Warn(">> Vista and above ID List data block");
 

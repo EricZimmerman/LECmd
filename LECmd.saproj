@@ -4,7 +4,7 @@
     <CompanyName>Eric Zimmerman saericzimmerman@gmail.com</CompanyName>
     <Configuration Name="Release">
         <Options>
-            <ExceptionReporting EmailToBeNotified="mikestammer@gmail.com" ReportExceptions="1" Template="res:{SmartExceptions}.AdvancedUI.dll" />
+            <ExceptionReporting EmailToBeNotified="eric@mikestammer.com" ReportExceptions="1" Template="res:{SmartExceptions}.AdvancedUI.dll" />
             <FeatureUsageReporting Template="res:SmartUsageWithUIConsentFirstRun1033.dll" />
             <StringsEncoding />
             <StrongNameSigning />

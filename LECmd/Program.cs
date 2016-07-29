@@ -1002,9 +1002,21 @@ namespace LnkCmd
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
 
-                                                var suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                        .PadRight(35);
+                                                var propNameAsInt = 0;
+                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
+
+                                                var suffix = string.Empty;
+
+                                                if (intParsed)
+                                                {
+                                                    suffix =
+                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                            .PadRight(35);
+                                                }
+
+//                                                var suffix =
+//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+//                                                        .PadRight(35);
 
                                                 _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                             }
@@ -1041,10 +1053,18 @@ namespace LnkCmd
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
 
-                                                var suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                        .PadRight(35);
+                                                var propNameAsInt = 0;
+                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
 
+                                                var suffix = string.Empty;
+
+                                                if (intParsed)
+                                                {
+                                                    suffix =
+                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                            .PadRight(35);
+                                                }
+                                                
                                                 _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                             }
                                         }
@@ -1258,9 +1278,22 @@ namespace LnkCmd
                                                 propCount += 1;
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                                var suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                        .PadRight(35);
+
+                                                var propNameAsInt = 0;
+                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
+
+                                                var suffix = string.Empty;
+
+                                                if (intParsed)
+                                                {
+                                                    suffix =
+                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                            .PadRight(35);
+                                                }
+
+//                                                var suffix =
+//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+//                                                        .PadRight(35);
 
                                                 _logger.Info($"   {prefix} {suffix} ==> {propertyName.Value}");
                                             }

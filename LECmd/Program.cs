@@ -1241,6 +1241,9 @@ namespace LnkCmd
                                     var ddb = extraDataBase as DarwinDataBlock;
                                     _logger.Warn(">> Darwin data block");
                                     _logger.Info($"   Application ID: {ddb.ApplicationIdentifierUnicode}");
+                                    _logger.Info($"   Product code: {ddb.ProductCode}");
+                                    _logger.Info($"   Feature name: {ddb.FeatureName}");
+                                    _logger.Info($"   Component ID: {ddb.ComponentId}");
                                     _logger.Info("");
                                     break;
                                 case "EnvironmentVariableDataBlock":

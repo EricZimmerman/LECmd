@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Xml;
+using Exceptionless;
 using ExtensionBlocks;
 using Fclp;
 using Fclp.Internals.Extensions;
@@ -26,10 +27,9 @@ namespace LnkCmd
 {
     internal class Program
     {
-        private const string SSLicenseFile = @"D:\SSLic.txt";
         private static Logger _logger;
 
-        private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff K";
+        private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
 
         private static FluentCommandLineParser<ApplicationArguments> _fluentCommandLineParser;
 
@@ -71,7 +71,7 @@ namespace LnkCmd
 
         private static void Main(string[] args)
         {
-            Licensing.RegisterLicenseFromFileIfExists(SSLicenseFile);
+            ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
 
             LoadMACs();
 
@@ -149,12 +149,12 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")
     .WithDescription(
-        "The custom date/time format to use when displaying time stamps. Default is: yyyy-MM-dd HH:mm:ss K").SetDefault("yyyy-MM-dd HH:mm:ss K");
+        "The custom date/time format to use when displaying time stamps. See https://goo.gl/CNVq0k for options. Default is: yyyy-MM-dd HH:mm:ss").SetDefault("yyyy-MM-dd HH:mm:ss");
 
             _fluentCommandLineParser.Setup(arg => arg.PreciseTimestamps)
    .As("mp")
    .WithDescription(
-       "Display higher precision for time stamps. Default is false").SetDefault(false);
+       $"Display higher precision for time stamps. Default is false").SetDefault(false);
 
 
             var header =
@@ -646,7 +646,7 @@ namespace LnkCmd
                 .GetField(value.ToString())
                 .GetCustomAttributes(typeof(DescriptionAttribute), false)
                 .SingleOrDefault() as DescriptionAttribute;
-            return attribute == null ? value.ToString() : attribute.Description;
+            return attribute?.Description;
         }
 
         private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)
@@ -1001,9 +1001,7 @@ namespace LnkCmd
                                                 propCount += 1;
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-
-                                                var propNameAsInt = 0;
-                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
+                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
 
                                                 var suffix = string.Empty;
 
@@ -1052,9 +1050,7 @@ namespace LnkCmd
                                                 propCount += 1;
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-
-                                                var propNameAsInt = 0;
-                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
+                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
 
                                                 var suffix = string.Empty;
 
@@ -1281,9 +1277,7 @@ namespace LnkCmd
                                                 propCount += 1;
 
                                                 var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-
-                                                var propNameAsInt = 0;
-                                                var intParsed = int.TryParse(propertyName.Key, out propNameAsInt);
+                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
 
                                                 var suffix = string.Empty;
 

@@ -452,8 +452,8 @@ namespace LnkCmd
                         xml?.WriteElementString("FileAttributes", o.FileAttributes);
                         xml?.WriteElementString("HeaderFlags", o.HeaderFlags);
                         xml?.WriteElementString("DriveType", o.DriveType);
-                        xml?.WriteElementString("DriveSerialNumber", o.DriveSerialNumber);
-                        xml?.WriteElementString("DriveLabel", o.DriveLabel);
+                        xml?.WriteElementString("VolumeSerialNumber", o.VolumeSerialNumber);
+                        xml?.WriteElementString("VolumeLabel", o.VolumeLabel);
                         xml?.WriteElementString("LocalPath", o.LocalPath);
                         xml?.WriteElementString("CommonPath", o.CommonPath);
                         xml?.WriteElementString("Arguments", o.Arguments);
@@ -509,8 +509,8 @@ namespace LnkCmd
                 TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? string.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 CommonPath = lnk.CommonPath,
-                DriveLabel = lnk.VolumeInfo?.VolumeLabel,
-                DriveSerialNumber = lnk.VolumeInfo?.DriveSerialNumber,
+                VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
+                VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
                 DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType),
                 FileAttributes = lnk.Header.FileAttributes.ToString(),
                 FileSize = lnk.Header.FileSize,
@@ -747,7 +747,7 @@ namespace LnkCmd
                             _logger.Info("");
                             _logger.Warn(">>Volume information");
                             _logger.Info($"  Drive type: {GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType)}");
-                            _logger.Info($"  Serial number: {lnk.VolumeInfo.DriveSerialNumber}");
+                            _logger.Info($"  Serial number: {lnk.VolumeInfo.VolumeSerialNumber}");
 
                             var label = lnk.VolumeInfo.VolumeLabel.Length > 0
                                 ? lnk.VolumeInfo.VolumeLabel
@@ -1421,14 +1421,14 @@ namespace LnkCmd
         public string TargetCreated { get; set; }
         public string TargetModified { get; set; }
         public string  TargetAccessed { get; set; }
-        public int FileSize { get; set; }
+        public uint FileSize { get; set; }
         public string RelativePath { get; set; }
         public string WorkingDirectory { get; set; }
         public string FileAttributes { get; set; }
         public string HeaderFlags { get; set; }
         public string DriveType { get; set; }
-        public string DriveSerialNumber { get; set; }
-        public string DriveLabel { get; set; }
+        public string VolumeSerialNumber { get; set; }
+        public string VolumeLabel { get; set; }
         public string LocalPath { get; set; }
         public string CommonPath { get; set; }
         public string Arguments { get; set; }

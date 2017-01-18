@@ -40,8 +40,9 @@
       <HintPath>..\packages\CsvHelper.2.16.3.0\lib\net45\CsvHelper.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Exceptionless, Version=4.0.1924.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Exceptionless.4.0.1924\lib\net45\Exceptionless.dll</HintPath>
+    <Reference Include="Exceptionless, Version=4.0.1927.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Exceptionless.4.0.1927\lib\net45\Exceptionless.dll</HintPath>
+      <Private>True</Private>
     </Reference>
     <Reference Include="ExtensionBlocks, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>

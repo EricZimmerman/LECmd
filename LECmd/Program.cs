@@ -128,6 +128,12 @@ namespace LnkCmd
                 .WithDescription(
                     "When exporting to json, use a more human readable layout\r\n").SetDefault(false);
 
+            _fluentCommandLineParser.Setup(arg => arg.RemovableOnly)
+                .As('r')
+                .WithDescription(
+                    "Only process lnk files pointing to removable drives")
+                .SetDefault(false);
+
             _fluentCommandLineParser.Setup(arg => arg.Quiet)
                 .As('q')
                 .WithDescription(
@@ -677,6 +683,11 @@ namespace LnkCmd
             try
             {
                 var lnk = Lnk.Lnk.LoadFile(lnkFile);
+
+                if (_fluentCommandLineParser.Object.RemovableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
+                {
+                    return null;
+                }
 
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
@@ -1460,6 +1471,8 @@ namespace LnkCmd
         public string DateTimeFormat { get; set; }
 
         public bool PreciseTimestamps { get; set; }
+
+        public bool RemovableOnly { get; set; }
 
         public bool Quiet { get; set; }
 

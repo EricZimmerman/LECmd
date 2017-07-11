@@ -1182,6 +1182,7 @@ namespace LnkCmd
                                         }
                                     }
                                     break;
+                                case "SHELLBAG0X23":
                                 case "SHELLBAG0XC3":
                                     break;
                                 case "SHELLBAGZIPCONTENTS":

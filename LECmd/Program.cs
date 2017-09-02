@@ -1353,6 +1353,13 @@ namespace LnkCmd
 
                                     _logger.Info("");
                                     break;
+                                case "DamagedDataBlock":
+                                    var dmg = extraDataBase as DamagedDataBlock;
+                                    _logger.Warn("Damaged data block");
+                                    _logger.Info($"   Original Signature: {dmg.OriginalSignature}");
+                                    _logger.Info($"   Error Message: {dmg.ErrorMessage}");
+                                
+                                    break;
                             }
                         }
                     }

@@ -256,7 +256,7 @@ namespace LnkCmd
                 catch (Exception ex)
                 {
                     _logger.Error(
-                        $"Error processing file '{_fluentCommandLineParser.Object.Directory}' Please send it to saericzimmerman@gmail.com. Error: {ex.Message}");
+                        $"Error processing file '{_fluentCommandLineParser.Object.File}' Please send it to saericzimmerman@gmail.com. Error: {ex.Message}");
                     return;
                 }
             }
@@ -357,6 +357,7 @@ namespace LnkCmd
                             csv = new CsvWriter(sw);
                             csv.Configuration.Delimiter = $"{'\t'}";
                             csv.WriteHeader(typeof(CsvOut));
+                            csv.NextRecord();
                         }
                         catch (Exception ex)
                         {
@@ -428,6 +429,7 @@ namespace LnkCmd
                         try
                         {
                             csv?.WriteRecord(o);
+                            csv?.NextRecord();
                         }
                         catch (Exception ex)
                         {

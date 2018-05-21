@@ -39,6 +39,8 @@ namespace LnkCmd
 
         private static List<LnkFile> _processedFiles;
 
+        private static string exportExt = "tsv";
+
         private static bool CheckForDotnet46()
         {
             using (
@@ -141,6 +143,8 @@ namespace LnkCmd
                 .SetDefault(false);
 
 
+          
+
             _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
                 .As("nid")
                 .WithDescription(
@@ -151,6 +155,11 @@ namespace LnkCmd
                 .As("neb")
                 .WithDescription(
                     "Suppress Extra blocks information from being displayed. Default is false.\r\n").SetDefault(false);
+
+            _fluentCommandLineParser.Setup(arg => arg.CsvSeparator)
+                .As("cs")
+                .WithDescription(
+                    "When true, use comma instead of tab for field separator. Default is false").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")
@@ -228,6 +237,11 @@ namespace LnkCmd
             if (_fluentCommandLineParser.Object.PreciseTimestamps)
             {
                 _fluentCommandLineParser.Object.DateTimeFormat = _preciseTimeFormat;
+            }
+
+            if (_fluentCommandLineParser.Object.CsvSeparator)
+            {
+                exportExt = "csv";
             }
 
             _processedFiles = new List<LnkFile>();
@@ -343,7 +357,7 @@ namespace LnkCmd
                             Directory.CreateDirectory(_fluentCommandLineParser.Object.CsvDirectory);
                         }
 
-                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.tsv";
+                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.{exportExt}";
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.CsvDirectory, outName);
 
                         _fluentCommandLineParser.Object.CsvDirectory =
@@ -355,7 +369,10 @@ namespace LnkCmd
                         {
                             sw = new StreamWriter(outFile);
                             csv = new CsvWriter(sw);
-                            csv.Configuration.Delimiter = $"{'\t'}";
+                            if (_fluentCommandLineParser.Object.CsvSeparator == false)
+                            {
+                                csv.Configuration.Delimiter = "\t";
+                            }
                             csv.WriteHeader(typeof(CsvOut));
                             csv.NextRecord();
                         }
@@ -1485,6 +1502,8 @@ namespace LnkCmd
         public bool RemovableOnly { get; set; }
 
         public bool Quiet { get; set; }
+
+        public bool CsvSeparator { get; set; }
 
         //  public bool LocalTime { get; set; }
     }

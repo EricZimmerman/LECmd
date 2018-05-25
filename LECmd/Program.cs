@@ -159,7 +159,7 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.CsvSeparator)
                 .As("cs")
                 .WithDescription(
-                    "When true, use comma instead of tab for field separator. Default is false").SetDefault(false);
+                    "When true, use comma instead of tab for field separator. Default is true").SetDefault(true);
 
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")

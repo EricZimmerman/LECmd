@@ -108,7 +108,7 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.CsvDirectory)
                 .As("csv")
                 .WithDescription(
-                    "Directory to save CSV (tab separated) formatted results to. Be sure to include the full path in double quotes");
+                    "Directory to save CSV formatted results to. Be sure to include the full path in double quotes");
 
             _fluentCommandLineParser.Setup(arg => arg.XmlDirectory)
                 .As("xml")
@@ -142,8 +142,6 @@ namespace LnkCmd
                     "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv\r\n")
                 .SetDefault(false);
 
-
-          
 
             _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
                 .As("nid")
@@ -363,7 +361,7 @@ namespace LnkCmd
                         _fluentCommandLineParser.Object.CsvDirectory =
                             Path.GetFullPath(outFile);
                         _logger.Warn(
-                            $"CSV (tab separated) output will be saved to '{Path.GetFullPath(outFile)}'");
+                            $"CSV output will be saved to '{Path.GetFullPath(outFile)}'");
 
                         try
                         {

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Principal;
 using System.Text;
 using System.Xml;
 using Exceptionless;
@@ -71,6 +72,13 @@ namespace LnkCmd
             }
         }
 
+        public static bool IsAdministrator()
+        {
+            var identity = WindowsIdentity.GetCurrent();
+            var principal = new WindowsPrincipal(identity);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
         private static void Main(string[] args)
         {
             ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
@@ -78,9 +86,9 @@ namespace LnkCmd
             LoadMACs();
 
             SetupNLog();
-
+            
             _logger = LogManager.GetCurrentClassLogger();
-
+            
             if (!CheckForDotnet46())
             {
                 _logger.Warn(".net 4.6 not detected. Please install .net 4.6 and try again.");
@@ -231,6 +239,11 @@ namespace LnkCmd
             _logger.Info(header);
             _logger.Info("");
             _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}\r\n");
+
+            if (IsAdministrator() == false)
+            {
+                _logger.Fatal($"Warning: Administrator privileges not found!\r\n");
+            }
 
             if (_fluentCommandLineParser.Object.PreciseTimestamps)
             {

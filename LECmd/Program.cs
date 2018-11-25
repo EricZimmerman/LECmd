@@ -40,21 +40,6 @@ namespace LnkCmd
 
         private static List<LnkFile> _processedFiles;
 
-        private static string exportExt = "tsv";
-
-        private static bool CheckForDotnet46()
-        {
-            using (
-                var ndpKey =
-                    RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32)
-                        .OpenSubKey("SOFTWARE\\Microsoft\\NET Framework Setup\\NDP\\v4\\Full\\"))
-            {
-                var releaseKey = Convert.ToInt32(ndpKey?.GetValue("Release"));
-
-                return releaseKey >= 393295;
-            }
-        }
-
         private static void LoadMACs()
         {
             var lines = Resources.MACs.Split(new[] {Environment.NewLine}, StringSplitOptions.None);
@@ -88,12 +73,7 @@ namespace LnkCmd
             SetupNLog();
             
             _logger = LogManager.GetCurrentClassLogger();
-            
-            if (!CheckForDotnet46())
-            {
-                _logger.Warn(".net 4.6 not detected. Please install .net 4.6 and try again.");
-                return;
-            }
+      
 
             _fluentCommandLineParser = new FluentCommandLineParser<ApplicationArguments>
             {
@@ -111,12 +91,16 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.AllFiles)
                 .As("all")
                 .WithDescription(
-                    "Process all files in directory vs. only files matching *.lnk\r\n").SetDefault(false);
+                    "Process all files in directory vs. only files matching *.lnk. Default is FALSE\r\n").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.CsvDirectory)
                 .As("csv")
                 .WithDescription(
                     "Directory to save CSV formatted results to. Be sure to include the full path in double quotes");
+            _fluentCommandLineParser.Setup(arg => arg.CsvName)
+                .As("csvf")
+                .WithDescription("File name to save CSV formatted results to. When present, overrides default name\r\n");
+
 
             _fluentCommandLineParser.Setup(arg => arg.XmlDirectory)
                 .As("xml")
@@ -136,36 +120,33 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.JsonPretty)
                 .As("pretty")
                 .WithDescription(
-                    "When exporting to json, use a more human readable layout\r\n").SetDefault(false);
+                    "When exporting to json, use a more human readable layout. Default is FALSE\r\n").SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.RemovableOnly)
                 .As('r')
                 .WithDescription(
-                    "Only process lnk files pointing to removable drives")
+                    "Only process lnk files pointing to removable drives. Default is FALSE")
                 .SetDefault(false);
 
             _fluentCommandLineParser.Setup(arg => arg.Quiet)
                 .As('q')
                 .WithDescription(
-                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv\r\n")
+                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv. Default is FALSE\r\n")
                 .SetDefault(false);
 
 
             _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
                 .As("nid")
                 .WithDescription(
-                    "Suppress Target ID list details from being displayed. Default is false.").SetDefault(false);
+                    "Suppress Target ID list details from being displayed. Default is FALSE").SetDefault(false);
 
 
             _fluentCommandLineParser.Setup(arg => arg.NoExtraBlocks)
                 .As("neb")
                 .WithDescription(
-                    "Suppress Extra blocks information from being displayed. Default is false.\r\n").SetDefault(false);
+                    "Suppress Extra blocks information from being displayed. Default is FALSE\r\n").SetDefault(false);
 
-            _fluentCommandLineParser.Setup(arg => arg.CsvSeparator)
-                .As("cs")
-                .WithDescription(
-                    "When true, use comma instead of tab for field separator. Default is true").SetDefault(true);
+         
 
             _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
     .As("dt")
@@ -175,7 +156,7 @@ namespace LnkCmd
             _fluentCommandLineParser.Setup(arg => arg.PreciseTimestamps)
    .As("mp")
    .WithDescription(
-       $"Display higher precision for time stamps. Default is false").SetDefault(false);
+       $"Display higher precision for time stamps. Default is FALSE").SetDefault(false);
 
 
             var header =
@@ -250,11 +231,7 @@ namespace LnkCmd
                 _fluentCommandLineParser.Object.DateTimeFormat = _preciseTimeFormat;
             }
 
-            if (_fluentCommandLineParser.Object.CsvSeparator)
-            {
-                exportExt = "csv";
-            }
-
+   
             _processedFiles = new List<LnkFile>();
 
 
@@ -368,7 +345,13 @@ namespace LnkCmd
                             Directory.CreateDirectory(_fluentCommandLineParser.Object.CsvDirectory);
                         }
 
-                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.{exportExt}";
+                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.csv";
+
+                        if (_fluentCommandLineParser.Object.CsvName.IsNullOrEmpty() == false)
+                        {
+                            outName = Path.GetFileName(_fluentCommandLineParser.Object.CsvName);
+                        }
+
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.CsvDirectory, outName);
 
                         _fluentCommandLineParser.Object.CsvDirectory =
@@ -380,10 +363,7 @@ namespace LnkCmd
                         {
                             sw = new StreamWriter(outFile);
                             csv = new CsvWriter(sw);
-                            if (_fluentCommandLineParser.Object.CsvSeparator == false)
-                            {
-                                csv.Configuration.Delimiter = "\t";
-                            }
+                    
                             csv.WriteHeader(typeof(CsvOut));
                             csv.NextRecord();
                         }
@@ -1503,6 +1483,7 @@ namespace LnkCmd
         public bool NoTargetIDList { get; set; }
         public bool NoExtraBlocks { get; set; }
         public string CsvDirectory { get; set; }
+        public string CsvName { get; set; }
         public string XmlDirectory { get; set; }
         public string xHtmlDirectory { get; set; }
 
@@ -1514,8 +1495,6 @@ namespace LnkCmd
 
         public bool Quiet { get; set; }
 
-        public bool CsvSeparator { get; set; }
 
-        //  public bool LocalTime { get; set; }
     }
 }

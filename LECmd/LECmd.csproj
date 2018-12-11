@@ -91,10 +91,10 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Costura.Fody">
-      <Version>3.1.6</Version>
+      <Version>3.2.1</Version>
     </PackageReference>
     <PackageReference Include="CsvHelper">
-      <Version>9.2.3</Version>
+      <Version>12.0.1</Version>
     </PackageReference>
     <PackageReference Include="Exceptionless">
       <Version>4.3.2012</Version>
@@ -103,7 +103,7 @@
       <Version>1.4.3</Version>
     </PackageReference>
     <PackageReference Include="Fody">
-      <Version>3.3.2</Version>
+      <Version>3.3.3</Version>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>

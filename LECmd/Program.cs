@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Security.Principal;
 using System.Text;
 using System.Xml;
+using Alphaleonis.Win32.Filesystem;
 using Exceptionless;
 using ExtensionBlocks;
 using Fclp;
@@ -16,13 +17,16 @@ using LECmd.Properties;
 using Lnk;
 using Lnk.ExtraData;
 using Lnk.ShellItems;
-using Microsoft.Win32;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
 using ServiceStack;
 using ServiceStack.Text;
 using CsvWriter = CsvHelper.CsvWriter;
+using Directory = Alphaleonis.Win32.Filesystem.Directory;
+using File = Alphaleonis.Win32.Filesystem.File;
+using Path = Alphaleonis.Win32.Filesystem.Path;
+using VolumeInfo = Lnk.VolumeInfo;
 
 namespace LnkCmd
 {
@@ -271,14 +275,46 @@ namespace LnkCmd
 
                 try
                 {
-                    var mask = "*.lnk";
+                 
+
+                    var f = new DirectoryEnumerationFilters();
+                f.InclusionFilter = fsei =>
+                {
+                    var mask = ".lnk".ToUpperInvariant();
                     if (_fluentCommandLineParser.Object.AllFiles)
                     {
                         mask = "*";
                     }
 
-                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, mask,
-                        SearchOption.AllDirectories);
+                    if (mask == "*")
+                    {
+                        return true;
+                    }
+
+                    if (fsei.Extension.ToUpperInvariant() == mask)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                };
+
+                f.RecursionFilter = entryInfo => !entryInfo.IsMountPoint && !entryInfo.IsSymbolicLink;
+
+                f.ErrorFilter = (errorCode, errorMessage, pathProcessed) => true;
+
+                var dirEnumOptions =
+                    DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
+                    DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
+                    DirectoryEnumerationOptions.BasicSearch;
+
+                var files2 =
+                    Directory.EnumerateFileSystemEntries(_fluentCommandLineParser.Object.Directory, dirEnumOptions, f);
+
+                lnkFiles = files2.ToArray();
+
+//                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, mask,
+//                        SearchOption.AllDirectories);
                 }
                 catch (UnauthorizedAccessException ua)
                 {

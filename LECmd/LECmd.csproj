@@ -78,6 +78,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Dependencies\ExtensionBlocks.dll" />
+    <Content Include="Dependencies\GuidMapping.dll" />
+    <Content Include="Dependencies\GuidMapping.pdb" />
     <Content Include="Dependencies\Lnk.dll" />
     <Content Include="PcDesktopCheck.ico" />
     <None Include="Resources\style.css" />

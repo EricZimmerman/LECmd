@@ -28,7 +28,7 @@ using File = Alphaleonis.Win32.Filesystem.File;
 using Path = Alphaleonis.Win32.Filesystem.Path;
 using VolumeInfo = Lnk.VolumeInfo;
 
-namespace LnkCmd
+namespace LECmd
 {
     internal class Program
     {
@@ -40,7 +40,7 @@ namespace LnkCmd
 
         private static List<string> _failedFiles;
 
-        private static readonly Dictionary<string, string> _macList = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
 
         private static List<LnkFile> _processedFiles;
 
@@ -50,13 +50,17 @@ namespace LnkCmd
 
             foreach (var line in lines)
             {
+                if (line.Trim().Length == 0)
+                {
+                    continue;
+                }
                 var segs = line.ToUpperInvariant().Split('\t');
                 var key = segs[0].Trim();
                 var val = segs[1].Trim();
 
-                if (_macList.ContainsKey(key) == false)
+                if (MacList.ContainsKey(key) == false)
                 {
-                    _macList.Add(key, val);
+                    MacList.Add(key, val);
                 }
             }
         }
@@ -377,7 +381,8 @@ namespace LnkCmd
                     {
                         if (Directory.Exists(_fluentCommandLineParser.Object.CsvDirectory) == false)
                         {
-                            _logger.Warn($"'{_fluentCommandLineParser.Object.CsvDirectory} does not exist. Creating...'");
+                            _logger.Warn(
+                                $"'{_fluentCommandLineParser.Object.CsvDirectory} does not exist. Creating...'");
                             Directory.CreateDirectory(_fluentCommandLineParser.Object.CsvDirectory);
                         }
 
@@ -399,7 +404,7 @@ namespace LnkCmd
                         {
                             sw = new StreamWriter(outFile);
                             csv = new CsvWriter(sw);
-                    
+
                             csv.WriteHeader(typeof(CsvOut));
                             csv.NextRecord();
                         }
@@ -414,31 +419,55 @@ namespace LnkCmd
                     {
                         if (Directory.Exists(_fluentCommandLineParser.Object.JsonDirectory) == false)
                         {
-                            _logger.Warn($"'{_fluentCommandLineParser.Object.JsonDirectory} does not exist. Creating...'");
+                            _logger.Warn(
+                                $"'{_fluentCommandLineParser.Object.JsonDirectory} does not exist. Creating...'");
                             Directory.CreateDirectory(_fluentCommandLineParser.Object.JsonDirectory);
                         }
+
                         _logger.Warn($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
                     }
+
                     if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
                     {
                         {
                             if (Directory.Exists(_fluentCommandLineParser.Object.XmlDirectory) == false)
                             {
-                                _logger.Warn($"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
+                                _logger.Warn(
+                                    $"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
                                 Directory.CreateDirectory(_fluentCommandLineParser.Object.XmlDirectory);
                             }
-                            
+
                         }
                         _logger.Warn($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
                     }
 
                     XmlTextWriter xml = null;
+                    StreamWriter jsonOut = null;
+
+                    if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0) 
+                    {
+                        JsConfig.DateHandler = DateHandler.ISO8601;
+
+                        if (Directory.Exists(_fluentCommandLineParser.Object.JsonDirectory) == false)
+                        {
+                            Directory.CreateDirectory(_fluentCommandLineParser.Object.JsonDirectory);
+                        }
+
+                        var outName =
+                            $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output.json";
+                        var outFile = Path.Combine(_fluentCommandLineParser.Object.JsonDirectory, outName);
+
+//                        _logger.Warn(
+//                            $"json output will be saved to '{Path.GetFullPath(outFile)}'");
+
+                        jsonOut = new StreamWriter(new FileStream(outFile,FileMode.OpenOrCreate,FileAccess.Write),Encoding.UTF8);
+                    }
 
                     if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)
                     {
 
                         var outDir = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory,
-                            $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_LECmd_Output_for_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\", "_").Replace(@"\", "_")}");
+                            $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output_for_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\", "_").Replace(@"\", "_")}");
 
                         if (Directory.Exists(outDir) == false)
                         {
@@ -481,11 +510,27 @@ namespace LnkCmd
                                 $"Error writing record for '{processedFile.SourceFile}' to '{_fluentCommandLineParser.Object.CsvDirectory}'. Error: {ex.Message}");
                         }
 
-                        if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
+                        if (jsonOut != null)
                         {
-                            SaveJson(processedFile, _fluentCommandLineParser.Object.JsonPretty,
-                                _fluentCommandLineParser.Object.JsonDirectory);
+                            var oldDt = _fluentCommandLineParser.Object.DateTimeFormat;
+
+                            _fluentCommandLineParser.Object.DateTimeFormat = "o";
+
+                            var cs = GetCsvFormat(processedFile);
+
+                            _fluentCommandLineParser.Object.DateTimeFormat = oldDt;
+
+                            if (_fluentCommandLineParser.Object.JsonPretty)
+                            {
+                                jsonOut.WriteLine(cs.Dump());
+                            }
+                            else
+                            {
+                                jsonOut.WriteLine(cs.ToJson());
+                                
+                            }
                         }
+
 
                         //XHTML
                         xml?.WriteStartElement("Container");
@@ -535,6 +580,10 @@ namespace LnkCmd
                     //Close CSV stuff
                     sw?.Flush();
                     sw?.Close();
+
+                    //close json
+                    jsonOut?.Flush();
+                    jsonOut?.Close();
 
                     //Close XML
                     xml?.WriteEndElement();
@@ -637,28 +686,6 @@ namespace LnkCmd
             return csOut;
         }
 
-        private static void DumpToJson(LnkFile lnk, bool pretty, string outFile)
-        {
-            JsConfig.DateHandler = DateHandler.ISO8601;
-
-            var oldDt = _fluentCommandLineParser.Object.DateTimeFormat;
-
-            _fluentCommandLineParser.Object.DateTimeFormat = "o";
-
-            var cs = GetCsvFormat(lnk);
-
-            _fluentCommandLineParser.Object.DateTimeFormat = oldDt;
-
-            if (pretty)
-            {
-                File.WriteAllText(outFile, cs.Dump());
-            }
-            else
-            {
-                File.WriteAllText(outFile, cs.ToJson());
-            }
-        }
-
         private static void SaveXML(CsvOut csout, string outDir)
         {
             try
@@ -678,27 +705,6 @@ namespace LnkCmd
             catch (Exception ex)
             {
                 _logger.Error($"Error exporting XML for '{csout.SourceFile}'. Error: {ex.Message}");
-            }
-        }
-
-        private static void SaveJson(LnkFile lnk, bool pretty, string outDir)
-        {
-            try
-            {
-                if (Directory.Exists(outDir) == false)
-                {
-                    Directory.CreateDirectory(outDir);
-                }
-
-                var outName =
-                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(lnk.SourceFile)}.json";
-                var outFile = Path.Combine(outDir, outName);
-
-                DumpToJson(lnk, pretty, outFile);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error($"Error exporting json for '{lnk.SourceFile}'. Error: {ex.Message}");
             }
         }
 
@@ -1454,14 +1460,14 @@ namespace LnkCmd
             //00-00-00	XEROX CORPORATION
             //"00:14:22:0d:94:04"
 
-            var mac = string.Join("-", macAddress.Split(':').Take(3)).ToUpperInvariant();
+            var mac = string.Join("", macAddress.Split(':').Take(3)).ToUpperInvariant();
                 // .Replace(":", "-").ToUpper();
 
             var vendor = "(Unknown vendor)";
 
-            if (_macList.ContainsKey(mac))
+            if (MacList.ContainsKey(mac))
             {
-                vendor = _macList[mac];
+                vendor = MacList[mac];
             }
 
             return vendor;

@@ -639,13 +639,23 @@ namespace LnkCmd
 
         private static void DumpToJson(LnkFile lnk, bool pretty, string outFile)
         {
+            JsConfig.DateHandler = DateHandler.ISO8601;
+
+            var oldDt = _fluentCommandLineParser.Object.DateTimeFormat;
+
+            _fluentCommandLineParser.Object.DateTimeFormat = "o";
+
+            var cs = GetCsvFormat(lnk);
+
+            _fluentCommandLineParser.Object.DateTimeFormat = oldDt;
+
             if (pretty)
             {
-                File.WriteAllText(outFile, lnk.Dump());
+                File.WriteAllText(outFile, cs.Dump());
             }
             else
             {
-                File.WriteAllText(outFile, lnk.ToJson());
+                File.WriteAllText(outFile, cs.ToJson());
             }
         }
 

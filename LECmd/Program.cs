@@ -457,8 +457,6 @@ namespace LECmd
                             $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output.json";
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.JsonDirectory, outName);
 
-//                        _logger.Warn(
-//                            $"json output will be saved to '{Path.GetFullPath(outFile)}'");
 
                         jsonOut = new StreamWriter(new FileStream(outFile,FileMode.OpenOrCreate,FileAccess.Write),Encoding.UTF8);
                     }
@@ -552,6 +550,7 @@ namespace LECmd
                         xml?.WriteElementString("VolumeSerialNumber", o.VolumeSerialNumber);
                         xml?.WriteElementString("VolumeLabel", o.VolumeLabel);
                         xml?.WriteElementString("LocalPath", o.LocalPath);
+                        xml?.WriteElementString("NetworkPath", o.NetworkPath);
                         xml?.WriteElementString("CommonPath", o.CommonPath);
                         xml?.WriteElementString("Arguments", o.Arguments);
 
@@ -600,6 +599,14 @@ namespace LECmd
 
         private static CsvOut GetCsvFormat(LnkFile lnk)
         {
+
+            var netPath = string.Empty;
+            
+            if (lnk.NetworkShareInfo != null)
+            {
+                netPath = lnk.NetworkShareInfo.NetworkShareName;
+            }
+
             var csOut = new CsvOut
             {
                 SourceFile = lnk.SourceFile,
@@ -617,6 +624,7 @@ namespace LECmd
                 FileSize = lnk.Header.FileSize,
                 HeaderFlags = lnk.Header.DataFlags.ToString(),
                 LocalPath = lnk.LocalPath,
+                NetworkPath = netPath,
                 RelativePath = lnk.RelativePath,
                 Arguments = lnk.Arguments
             };
@@ -1516,6 +1524,7 @@ namespace LECmd
         public string VolumeSerialNumber { get; set; }
         public string VolumeLabel { get; set; }
         public string LocalPath { get; set; }
+        public string NetworkPath { get; set; }
         public string CommonPath { get; set; }
         public string Arguments { get; set; }
         public string TargetIDAbsolutePath { get; set; }

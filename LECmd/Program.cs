@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -495,7 +496,7 @@ namespace LECmd
 
                     foreach (var processedFile in _processedFiles)
                     {
-                        var o = GetCsvFormat(processedFile);
+                        var o = GetCsvFormat(processedFile,false);
 
                         try
                         {
@@ -514,7 +515,7 @@ namespace LECmd
 
                             _fluentCommandLineParser.Object.DateTimeFormat = "o";
 
-                            var cs = GetCsvFormat(processedFile);
+                            var cs = GetCsvFormat(processedFile,true);
 
                             _fluentCommandLineParser.Object.DateTimeFormat = oldDt;
 
@@ -597,10 +598,10 @@ namespace LECmd
             }
         }
 
-        private static CsvOut GetCsvFormat(LnkFile lnk)
+        private static CsvOut GetCsvFormat(LnkFile lnk, bool nukeNulls)
         {
 
-            var netPath = string.Empty;
+            string netPath = String.Empty;
             
             if (lnk.NetworkShareInfo != null)
             {
@@ -615,7 +616,7 @@ namespace LECmd
                 SourceAccessed = lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
                 TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
-                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? string.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? String.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
                 CommonPath = lnk.CommonPath,
                 VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
                 VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
@@ -628,6 +629,8 @@ namespace LECmd
                 RelativePath = lnk.RelativePath,
                 Arguments = lnk.Arguments
             };
+
+         
 
             if (lnk.TargetIDs?.Count > 0)
             {
@@ -686,6 +689,18 @@ namespace LECmd
                             csOut.TargetMFTSequenceNumber =
                                 $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}";
                         }
+                    }
+                }
+            }
+
+            if (nukeNulls)
+            {
+                foreach(var prop in csOut.GetType().GetProperties())
+                {
+                    
+                    if ( prop.GetValue(csOut) as string == string.Empty)
+                    {
+                        prop.SetValue(csOut,null);
                     }
                 }
             }

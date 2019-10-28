@@ -27,6 +27,7 @@ using CsvWriter = CsvHelper.CsvWriter;
 using Directory = Alphaleonis.Win32.Filesystem.Directory;
 using File = Alphaleonis.Win32.Filesystem.File;
 using Path = Alphaleonis.Win32.Filesystem.Path;
+using ShellBag = Lnk.ShellItems.ShellBag;
 using VolumeInfo = Lnk.VolumeInfo;
 
 namespace LECmd
@@ -1000,7 +1001,7 @@ namespace LECmd
                                     break;
                                 case "SHELLBAG0X31":
 
-                                    var b3x = shellBag as ShellBag0X31;
+                                    var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
 
                                     _logger.Info($"    Short name: {b3x.ShortName}");
                                     if (b3x.LastModificationTime.HasValue)

@@ -3,6 +3,7 @@ using System.CodeDom;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -405,7 +406,7 @@ namespace LECmd
                         try
                         {
                             sw = new StreamWriter(outFile);
-                            csv = new CsvWriter(sw);
+                            csv = new CsvWriter(sw,CultureInfo.InvariantCulture);
 
                             csv.WriteHeader(typeof(CsvOut));
                             csv.NextRecord();

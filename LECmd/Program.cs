@@ -542,7 +542,7 @@ namespace LECmd
 
                         xml?.WriteElementString("TargetCreated", o.TargetCreated);
                         xml?.WriteElementString("TargetModified", o.TargetModified);
-                        xml?.WriteElementString("TargetAccessed", o.TargetModified);
+                        xml?.WriteElementString("TargetAccessed", o.TargetAccessed);
 
                         xml?.WriteElementString("FileSize", o.FileSize.ToString());
                         xml?.WriteElementString("RelativePath", o.RelativePath);

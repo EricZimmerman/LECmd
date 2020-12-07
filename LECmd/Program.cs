@@ -287,6 +287,11 @@ namespace LECmd
                     var f = new DirectoryEnumerationFilters();
                 f.InclusionFilter = fsei =>
                 {
+                    if (fsei.FileSize == 0)
+                    {
+                        return false;
+                    }
+
                     var mask = ".lnk".ToUpperInvariant();
                     if (_fluentCommandLineParser.Object.AllFiles)
                     {
@@ -313,7 +318,7 @@ namespace LECmd
                 var dirEnumOptions =
                     DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
                     DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
-                    DirectoryEnumerationOptions.BasicSearch;
+                    DirectoryEnumerationOptions.BasicSearch|DirectoryEnumerationOptions.AsLongPath;
 
                 var files2 =
                     Directory.EnumerateFileSystemEntries(_fluentCommandLineParser.Object.Directory, dirEnumOptions, f);

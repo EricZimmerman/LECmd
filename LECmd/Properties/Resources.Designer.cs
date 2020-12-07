@@ -19,7 +19,7 @@ namespace LECmd.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "16.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class Resources {
@@ -61,25 +61,31 @@ namespace LECmd.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 00-00-00	XEROX CORPORATION
-        ///00-00-01	XEROX CORPORATION
-        ///00-00-02	XEROX CORPORATION
-        ///00-00-03	XEROX CORPORATION
-        ///00-00-04	XEROX CORPORATION
-        ///00-00-05	XEROX CORPORATION
-        ///00-00-06	XEROX CORPORATION
-        ///00-00-07	XEROX CORPORATION
-        ///00-00-08	XEROX CORPORATION
-        ///00-00-09	XEROX CORPORATION
-        ///00-00-0A	OMRON TATEISI ELECTRONICS CO.
-        ///00-00-0B	MATRIX CORPORATION
-        ///00-00-0C	CISCO SYSTEMS, INC.
-        ///00-00-0D	FIBRONICS LTD.
-        ///00-00-0E	FUJITSU LIMITED
-        ///00-00-0F	NEXT, INC.
-        ///00-00-10	SYTEK INC.
-        ///00-00-11	NORMEREL SYSTEMES
-        ///00-00-12	INF [rest of string was truncated]&quot;;.
+        ///   Looks up a localized string similar to E043DB	Shenzhen ViewAt
+        ///2405F5	Integrated Device Sdn. Bhd
+        ///3CD92B	HP
+        ///9C8E99	HP
+        ///B499BA	HP
+        ///1CC1DE	HP
+        ///3C3556	Cognitec Systems
+        ///0050BA	D-Link
+        ///00179A	D-Link
+        ///18622C	Sagemcom Broadband SAS
+        ///7C03D8	Sagemcom Broadband SAS
+        ///E8F1B0	Sagemcom Broadband SAS
+        ///00F871	DGS Denmark
+        ///20BB76	CoL GIOVANNI PAOLO
+        ///2C228B	CTR SRL
+        ///348AAE	Sagemcom Broadband SAS
+        ///BCEC23	Shenzhen Chuangwei-RGB
+        ///AC06C7	ServerNet S.r.l
+        ///CC46D6	Cisco
+        ///48AD08	Huawei
+        ///2CAB00	Huawei
+        ///00E0FC	Huawei
+        ///24DF6A	Huawei
+        ///009ACD	Huawei
+        ///38F23E	Microsoft Mobile [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string MACs {
             get {
@@ -120,10 +126,12 @@ namespace LECmd.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to /* Report styling created by: Devon Ackerman */
-        ////*                  Last updated: 2016.02.14 */
+        ///   Looks up a localized string similar to /* Report styling created by: Devon Ackerman
+        ///					  devon@aeiforensics.com
+        ///                    Last Updated: 2016.02.16 
+        ///-------------------------------------------- */
         ///
-        ///Container {
+        ///Wrapper_Forensicator {
         ///	width: 1400px;
         ///	height: auto;
         ///	border: medium #146B99 solid;
@@ -134,16 +142,12 @@ namespace LECmd.Properties {
         ///	display: block;
         ///	padding: 0;
         ///	margin: 10px;
-        ///	background-color: #E9F0F4;
+        ///	background-color: #D9ECFF;
         ///}
         ///
-        ///Container:before {
-        ///  display: block;
-        ///  width: auto;
-        ///  font-weight: bold;
-        ///  font-size: 24px;
-        ///  content: &quot;.LNK File&quot;;
-        ///  background-color: #1 [rest of string was truncated]&quot;;.
+        ///	Forensicator {
+        ///		letter-spacing: 1pt;
+        ///		line-height: 1; [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string style {
             get {

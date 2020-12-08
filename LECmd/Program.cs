@@ -617,7 +617,7 @@ namespace LECmd
 
             var csOut = new CsvOut
             {
-                SourceFile = lnk.SourceFile,
+                SourceFile = lnk.SourceFile.Replace("\\\\?\\",""),
                 SourceCreated =  lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
                 SourceModified = lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
                 SourceAccessed = lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
@@ -765,7 +765,7 @@ namespace LECmd
         {
             if (_fluentCommandLineParser.Object.Quiet == false)
             {
-                _logger.Warn($"Processing '{lnkFile}'");
+                _logger.Warn($"Processing '{lnkFile.Replace("\\\\?\\","")}'");
                 _logger.Info("");
             }
 
@@ -783,7 +783,7 @@ namespace LECmd
 
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
-                    _logger.Error($"Source file: {lnk.SourceFile}");
+                    _logger.Error($"Source file: {lnk.SourceFile.Replace("\\\\?\\","")}");
                     _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
                     _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
                     _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
@@ -1465,7 +1465,7 @@ namespace LECmd
                 }
 
                 _logger.Info(
-                    $"---------- Processed '{lnk.SourceFile}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
+                    $"---------- Processed '{lnk.SourceFile.Replace("\\\\?\\","")}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
 
                 if (_fluentCommandLineParser.Object.Quiet == false)
                 {
@@ -1477,7 +1477,7 @@ namespace LECmd
 
             catch (Exception ex)
             {
-                _failedFiles.Add($"{lnkFile} ==> ({ex.Message})");
+                _failedFiles.Add($"{lnkFile.Replace("\\\\?\\","")} ==> ({ex.Message})");
                 _logger.Fatal($"Error opening '{lnkFile}'. Message: {ex.Message}");
                 _logger.Info("");
             }

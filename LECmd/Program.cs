@@ -254,6 +254,8 @@ namespace LECmd
 
                 try
                 {
+                    _fluentCommandLineParser.Object.File = Path.GetFullPath(_fluentCommandLineParser.Object.File);
+
                     lnk = ProcessFile(_fluentCommandLineParser.Object.File);
                     if (lnk != null)
                     {
@@ -277,6 +279,8 @@ namespace LECmd
             {
                 _logger.Info($"Looking for lnk files in '{_fluentCommandLineParser.Object.Directory}'");
                 _logger.Info("");
+
+                _fluentCommandLineParser.Object.Directory = Path.GetFullPath(_fluentCommandLineParser.Object.Directory);
 
                 string[] lnkFiles = null;
 

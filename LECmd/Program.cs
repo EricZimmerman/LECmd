@@ -470,7 +470,7 @@ namespace LECmd
                         var outFile = Path.Combine(_fluentCommandLineParser.Object.JsonDirectory, outName);
 
 
-                        jsonOut = new StreamWriter(new FileStream(outFile,FileMode.OpenOrCreate,FileAccess.Write),Encoding.UTF8);
+                        jsonOut = new StreamWriter(new FileStream(outFile,FileMode.OpenOrCreate,FileAccess.Write),new UTF8Encoding(false));
                     }
 
                     if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)

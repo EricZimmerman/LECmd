@@ -1,21 +1,21 @@
 ﻿using System;
-using System.CodeDom;
 using System.Collections.Generic;
+using System.CommandLine;
+using System.CommandLine.Help;
+using System.CommandLine.Invocation;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Xml;
 using Alphaleonis.Win32.Filesystem;
 using Exceptionless;
 using ExtensionBlocks;
-using Fclp;
-using Fclp.Internals.Extensions;
-using LECmd.Properties;
 using Lnk;
 using Lnk.ExtraData;
 using Lnk.ShellItems;
@@ -25,9 +25,10 @@ using NLog.Targets;
 using ServiceStack;
 using ServiceStack.Text;
 using CsvWriter = CsvHelper.CsvWriter;
-using Directory = Alphaleonis.Win32.Filesystem.Directory;
-using File = Alphaleonis.Win32.Filesystem.File;
-using Path = Alphaleonis.Win32.Filesystem.Path;
+using Directory = System.IO.Directory;
+using File = System.IO.File;
+using Path = System.IO.Path;
+using Resources = LECmd.Properties.Resources;
 using ShellBag = Lnk.ShellItems.ShellBag;
 using VolumeInfo = Lnk.VolumeInfo;
 
@@ -39,15 +40,13 @@ namespace LECmd
 
         private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
 
-        private static FluentCommandLineParser<ApplicationArguments> _fluentCommandLineParser;
-
         private static List<string> _failedFiles;
 
         private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
 
         private static List<LnkFile> _processedFiles;
 
-        private static void LoadMACs()
+        private static void LoadMacs()
         {
             var lines = Resources.MACs.Split(new[] {Environment.NewLine}, StringSplitOptions.None);
 
@@ -68,108 +67,110 @@ namespace LECmd
             }
         }
 
-        public static bool IsAdministrator()
+        private static bool IsAdministrator()
         {
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return true;
+            }
+
             var identity = WindowsIdentity.GetCurrent();
             var principal = new WindowsPrincipal(identity);
             return principal.IsInRole(WindowsBuiltInRole.Administrator);
+
         }
 
-        private static void Main(string[] args)
+        private static int Main(string[] args)
         {
             ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
 
-            LoadMACs();
+            LoadMacs();
 
             SetupNLog();
             
             _logger = LogManager.GetCurrentClassLogger();
-      
-
-            _fluentCommandLineParser = new FluentCommandLineParser<ApplicationArguments>
-            {
-                IsCaseSensitive = false
-            };
-
-            _fluentCommandLineParser.Setup(arg => arg.File)
-                .As('f')
-                .WithDescription("File to process. Either this or -d is required");
-
-            _fluentCommandLineParser.Setup(arg => arg.Directory)
-                .As('d')
-                .WithDescription("Directory to recursively process. Either this or -f is required");
-
-            _fluentCommandLineParser.Setup(arg => arg.AllFiles)
-                .As("all")
-                .WithDescription(
-                    "Process all files in directory vs. only files matching *.lnk. Default is FALSE\r\n").SetDefault(false);
-
-            _fluentCommandLineParser.Setup(arg => arg.CsvDirectory)
-                .As("csv")
-                .WithDescription(
-                    "Directory to save CSV formatted results to. Be sure to include the full path in double quotes");
-            _fluentCommandLineParser.Setup(arg => arg.CsvName)
-                .As("csvf")
-                .WithDescription("File name to save CSV formatted results to. When present, overrides default name\r\n");
-
-
-            _fluentCommandLineParser.Setup(arg => arg.XmlDirectory)
-                .As("xml")
-                .WithDescription(
-                    "Directory to save XML formatted results to. Be sure to include the full path in double quotes");
-
-            _fluentCommandLineParser.Setup(arg => arg.xHtmlDirectory)
-                .As("html")
-                .WithDescription(
-                    "Directory to save xhtml formatted results to. Be sure to include the full path in double quotes");
-
-            _fluentCommandLineParser.Setup(arg => arg.JsonDirectory)
-                .As("json")
-                .WithDescription(
-                    "Directory to save json representation to. Use --pretty for a more human readable layout");
-
-            _fluentCommandLineParser.Setup(arg => arg.JsonPretty)
-                .As("pretty")
-                .WithDescription(
-                    "When exporting to json, use a more human readable layout. Default is FALSE\r\n").SetDefault(false);
-
-            _fluentCommandLineParser.Setup(arg => arg.RemovableOnly)
-                .As('r')
-                .WithDescription(
-                    "Only process lnk files pointing to removable drives. Default is FALSE")
-                .SetDefault(false);
-
-            _fluentCommandLineParser.Setup(arg => arg.Quiet)
-                .As('q')
-                .WithDescription(
-                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv. Default is FALSE\r\n")
-                .SetDefault(false);
-
-
-            _fluentCommandLineParser.Setup(arg => arg.NoTargetIDList)
-                .As("nid")
-                .WithDescription(
-                    "Suppress Target ID list details from being displayed. Default is FALSE").SetDefault(false);
-
-
-            _fluentCommandLineParser.Setup(arg => arg.NoExtraBlocks)
-                .As("neb")
-                .WithDescription(
-                    "Suppress Extra blocks information from being displayed. Default is FALSE\r\n").SetDefault(false);
 
          
+            
+            
+            var rootCommand = new RootCommand
+            {
+                new Option<string>(
+                    "-f",
+                    
+                    description: "File to process. Either this or -d is required"),
+                new Option<string>(
+                    "-d",
+                    description: "Directory to recursively process. Either this or -f is required"),
+                new Option<bool>(
+                    "-r",
+                    getDefaultValue:()=>false,
+                    "Only process lnk files pointing to removable drives"),
+                
+                new Option<bool>(
+                    "-q",
+                    getDefaultValue:()=>false,
+                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv"),
 
-            _fluentCommandLineParser.Setup(arg => arg.DateTimeFormat)
-    .As("dt")
-    .WithDescription(
-        "The custom date/time format to use when displaying time stamps. See https://goo.gl/CNVq0k for options. Default is: yyyy-MM-dd HH:mm:ss").SetDefault("yyyy-MM-dd HH:mm:ss");
+                new Option<bool>(
+                    "--all",
+                    getDefaultValue:()=>false,
+                    "Process all files in directory vs. only files matching *.lnk"),
+                
+                new Option<string>(
+                    "--csv",
+                    "Directory to save CSV formatted results to. Be sure to include the full path in double quotes"),
+                
+                new Option<string>(
+                    "--csvf",
+                    "File name to save CSV formatted results to. When present, overrides default name\r\n"),
+                
+                new Option<string>(
+                    "--xml",
+                    "Directory to save XML formatted results to. Be sure to include the full path in double quotes"),
+                
+                new Option<string>(
+                    "--html",
+                    "Directory to save xhtml formatted results to. Be sure to include the full path in double quotes"),
+                
+                new Option<string>(
+                    "--json",
+                    "Directory to save json representation to. Use --pretty for a more human readable layout"),
+                
+                new Option<bool>(
+                    "--pretty",
+                    getDefaultValue:()=>false,
+                    "When exporting to json, use a more human readable layout\r\n"),
+                
+              
+                new Option<bool>(
+                    "--nid",
+                    getDefaultValue:()=>false,
+                    "Suppress Target ID list details from being displayed"),
+                
+                new Option<bool>(
+                    "--neb",
+                    getDefaultValue:()=>false,
+                    "Suppress Extra blocks information from being displayed\r\n"),
+                
+                new Option<string>(
+                    "--dt",
+                    getDefaultValue:()=>"yyyy-MM-dd HH:mm:ss",
+                    "The custom date/time format to use when displaying time stamps. See https://goo.gl/CNVq0k for options"),
+                
+                new Option<bool>(
+                    "--mp",
+                    getDefaultValue:()=>false,
+                    "Display higher precision for time stamps"),
+                
+            };
 
-            _fluentCommandLineParser.Setup(arg => arg.PreciseTimestamps)
-   .As("mp")
-   .WithDescription(
-       $"Display higher precision for time stamps. Default is FALSE").SetDefault(false);
+            rootCommand.Description = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
+                                      "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
+                                      "\r\nhttps://github.com/EricZimmerman/LECmd";
 
-
+            
+            
             var header =
                 $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
                 "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
@@ -184,432 +185,477 @@ namespace LECmd
                          "\r\n\t"+
                          "  Short options (single letter) are prefixed with a single dash. Long commands are prefixed with two dashes\r\n";
 
-            _fluentCommandLineParser.SetupHelp("?", "help")
-                .WithHeader(header)
-                .Callback(text => _logger.Info(text + "\r\n" + footer));
-
-            var result = _fluentCommandLineParser.Parse(args);
-
-            if (result.HelpCalled)
+            
+          
+            //<string, string, bool, bool,bool,string, string, string, string, string, bool, bool, bool, string, bool>
+            rootCommand.Handler = CommandHandler.Create(
+                (string f, string d, bool r, bool q, bool all, string  csv, string  csvf, string xml, string html,string json, bool pretty,bool nid, bool neb,string dt,bool mp) =>
             {
-                return;
-            }
-
-            if (result.HasErrors)
-            {
-                _logger.Error("");
-                _logger.Error(result.ErrorText);
-
-                _fluentCommandLineParser.HelpOption.ShowHelp(_fluentCommandLineParser.Options);
-
-                return;
-            }
-
-            if (UsefulExtension.IsNullOrEmpty(_fluentCommandLineParser.Object.File) &&
-                UsefulExtension.IsNullOrEmpty(_fluentCommandLineParser.Object.Directory))
-            {
-                _fluentCommandLineParser.HelpOption.ShowHelp(_fluentCommandLineParser.Options);
-
-                _logger.Warn("Either -f or -d is required. Exiting");
-                return;
-            }
-
-            if (UsefulExtension.IsNullOrEmpty(_fluentCommandLineParser.Object.File) == false &&
-                !File.Exists(_fluentCommandLineParser.Object.File))
-            {
-                _logger.Warn($"File '{_fluentCommandLineParser.Object.File}' not found. Exiting");
-                return;
-            }
-
-            if (UsefulExtension.IsNullOrEmpty(_fluentCommandLineParser.Object.Directory) == false &&
-                !Directory.Exists(_fluentCommandLineParser.Object.Directory))
-            {
-                _logger.Warn($"Directory '{_fluentCommandLineParser.Object.Directory}' not found. Exiting");
-                return;
-            }
-
-            _logger.Info(header);
-            _logger.Info("");
-            _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}\r\n");
-
-            if (IsAdministrator() == false)
-            {
-                _logger.Fatal($"Warning: Administrator privileges not found!\r\n");
-            }
-
-            if (_fluentCommandLineParser.Object.PreciseTimestamps)
-            {
-                _fluentCommandLineParser.Object.DateTimeFormat = _preciseTimeFormat;
-            }
-
-   
-            _processedFiles = new List<LnkFile>();
-
-
-            _failedFiles = new List<string>();
-
-            if (_fluentCommandLineParser.Object.File?.Length > 0)
-            {
-                LnkFile lnk = null;
-
-                try
+                
+                if (f.IsNullOrEmpty() && d.IsNullOrEmpty())
                 {
-                    _fluentCommandLineParser.Object.File = Path.GetFullPath(_fluentCommandLineParser.Object.File);
+                    var helpBld = new HelpBuilder(LocalizationResources.Instance, Console.WindowWidth);
+                    
+                    var hc = new HelpContext(helpBld,rootCommand,Console.Out);
 
-                    lnk = ProcessFile(_fluentCommandLineParser.Object.File);
-                    if (lnk != null)
-                    {
-                        _processedFiles.Add(lnk);
-                    }
-                }
-                catch (UnauthorizedAccessException ua)
-                {
-                    _logger.Error(
-                        $"Unable to access '{_fluentCommandLineParser.Object.File}'. Are you running as an administrator? Error: {ua.Message}");
+                    helpBld.Write(hc);
+                    
+                    Console.WriteLine(footer);
+                    
+                    _logger.Warn("Either -f or -d is required. Exiting\r\n");
                     return;
                 }
-                catch (Exception ex)
+
+               
+                
+                if (f.IsNullOrEmpty() == false && !File.Exists(f))
                 {
-                    _logger.Error(
-                        $"Error processing file '{_fluentCommandLineParser.Object.File}' Please send it to saericzimmerman@gmail.com. Error: {ex.Message}");
+                    var helpBld = new HelpBuilder(LocalizationResources.Instance, Console.WindowWidth);
+                    var hc = new HelpContext(helpBld,rootCommand,Console.Out);
+
+                    helpBld.Write(hc);
+                    
+                    Console.WriteLine(footer);
+                    
+                    _logger.Warn($"File '{f}' not found. Exiting\r\n");
                     return;
                 }
-            }
-            else
-            {
-                _logger.Info($"Looking for lnk files in '{_fluentCommandLineParser.Object.Directory}'");
+
+                if (d.IsNullOrEmpty() == false &&
+                    !Directory.Exists(d))
+                {
+                    var helpBld = new HelpBuilder(LocalizationResources.Instance, Console.WindowWidth);
+                    var hc = new HelpContext(helpBld,rootCommand,Console.Out);
+
+                    helpBld.Write(hc);
+                    
+                    Console.WriteLine(footer);
+                    
+                    _logger.Warn($"Directory '{d}' not found. Exiting\r\n");
+                    return;
+                }
+
+
+                _logger.Info(header);
                 _logger.Info("");
+                _logger.Info($"Command line: {string.Join(" ", Environment.GetCommandLineArgs().Skip(1))}\r\n");
 
-                _fluentCommandLineParser.Object.Directory = Path.GetFullPath(_fluentCommandLineParser.Object.Directory);
-
-                string[] lnkFiles = null;
-
-                try
+                if (IsAdministrator() == false)
                 {
-                 
+                    _logger.Fatal($"Warning: Administrator privileges not found!\r\n");
+                }
 
-                    var f = new DirectoryEnumerationFilters();
-                f.InclusionFilter = fsei =>
+                if (mp)
                 {
-                    if (fsei.FileSize == 0)
+                    dt = _preciseTimeFormat;
+                }
+
+
+                _processedFiles = new List<LnkFile>();
+
+
+                _failedFiles = new List<string>();
+
+                if (f?.Length > 0)
+                {
+                    LnkFile lnk;
+
+                    try
                     {
-                        return false;
-                    }
+                        f = Path.GetFullPath(f);
 
-                    var mask = ".lnk".ToUpperInvariant();
-                    if (_fluentCommandLineParser.Object.AllFiles)
+                        lnk = ProcessFile(f,q,r,dt,nid,neb);
+                        if (lnk != null)
+                        {
+                            _processedFiles.Add(lnk);
+                        }
+                    }
+                    catch (UnauthorizedAccessException ua)
                     {
-                        mask = "*";
+                        _logger.Error(
+                            $"Unable to access '{f}'. Are you running as an administrator? Error: {ua.Message}");
+                        return;
                     }
-
-                    if (mask == "*")
+                    catch (Exception ex)
                     {
-                        return true;
+                        _logger.Error(
+                            $"Error processing file '{f}' Please send it to saericzimmerman@gmail.com. Error: {ex.Message}");
+                        return;
                     }
+                }
+                else
+                {
+                    _logger.Info($"Looking for lnk files in '{d}'");
+                    _logger.Info("");
 
-                    if (fsei.Extension.ToUpperInvariant() == mask)
+                    d = Path.GetFullPath(d);
+
+                    string[] lnkFiles;
+
+                    try
                     {
-                        return true;
-                    }
 
-                    return false;
-                };
 
-                f.RecursionFilter = entryInfo => !entryInfo.IsMountPoint && !entryInfo.IsSymbolicLink;
+                      
+                        var mask = "*.lnk";
+                        if (all)
+                        {
+                            mask = "*";
+                        }
 
-                f.ErrorFilter = (errorCode, errorMessage, pathProcessed) => true;
+                        IEnumerable<string> files2;
+                        
+#if NET6_0
+                        var enumerationOptions = new EnumerationOptions
+                        {
+                            IgnoreInaccessible = true,
+                            MatchCasing = MatchCasing.CaseInsensitive,
+                            RecurseSubdirectories = true,
+                            AttributesToSkip = 0
+                        };
+                        
+                       files2 =
+                            Directory.EnumerateFileSystemEntries(d, mask,enumerationOptions);
+                        
+#else
+// Legacy implementation for previous frameworks
 
-                var dirEnumOptions =
-                    DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
-                    DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
-                    DirectoryEnumerationOptions.BasicSearch|DirectoryEnumerationOptions.AsLongPath;
+                        var directoryEnumerationFilters = new DirectoryEnumerationFilters();
+                        directoryEnumerationFilters.InclusionFilter = fsei =>
+                        {
+                            if (fsei.FileSize == 0)
+                            {
+                                return false;
+                            }
+                        
+                            mask = ".lnk".ToUpperInvariant();
+                            if (all)
+                            {
+                                mask = "*";
+                            }
+                        
+                            if (mask == "*")
+                            {
+                                return true;
+                            }
+                        
+                            if (fsei.Extension.ToUpperInvariant() == mask)
+                            {
+                                return true;
+                            }
+                        
+                            return false;
+                        };
+                        
+                        directoryEnumerationFilters.RecursionFilter = entryInfo => !entryInfo.IsMountPoint && !entryInfo.IsSymbolicLink;
+                        
+                        directoryEnumerationFilters.ErrorFilter = (errorCode, errorMessage, pathProcessed) => true;
+                        
+                        var dirEnumOptions =
+                            DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
+                            DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
+                            DirectoryEnumerationOptions.BasicSearch | DirectoryEnumerationOptions.AsLongPath;
 
-                var files2 =
-                    Directory.EnumerateFileSystemEntries(_fluentCommandLineParser.Object.Directory, dirEnumOptions, f);
+                        files2 =
+                            Alphaleonis.Win32.Filesystem.Directory.EnumerateFileSystemEntries(d, dirEnumOptions, directoryEnumerationFilters);
 
-                lnkFiles = files2.ToArray();
+                         // files2 =
+                         //    Directory.EnumerateFileSystemEntries(d, mask,SearchOption.AllDirectories);
+                        
+
+#endif
+
+                     
+
+                        lnkFiles = files2.ToArray();
 
 //                    lnkFiles = Directory.GetFiles(_fluentCommandLineParser.Object.Directory, mask,
 //                        SearchOption.AllDirectories);
-                }
-                catch (UnauthorizedAccessException ua)
-                {
-                    _logger.Error(
-                        $"Unable to access '{_fluentCommandLineParser.Object.Directory}'. Error message: {ua.Message}");
-                    return;
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error(
-                        $"Error getting lnk files in '{_fluentCommandLineParser.Object.Directory}'. Error: {ex.Message}");
-                    return;
-                }
-
-                _logger.Info($"Found {lnkFiles.Length:N0} files");
-                _logger.Info("");
-
-                var sw = new Stopwatch();
-                sw.Start();
-
-                foreach (var file in lnkFiles)
-                {
-                    var lnk = ProcessFile(file);
-                    if (lnk != null)
+                    }
+                    catch (UnauthorizedAccessException ua)
                     {
-                        _processedFiles.Add(lnk);
+                        _logger.Error(
+                            $"Unable to access '{d}'. Error message: {ua.Message}");
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(
+                            $"Error getting lnk files in '{d}'. Error: {ex.Message}");
+                        return;
+                    }
+
+                    _logger.Info($"Found {lnkFiles.Length:N0} files");
+                    _logger.Info("");
+
+                    var sw = new Stopwatch();
+                    sw.Start();
+
+                    foreach (var file in lnkFiles)
+                    {
+                        var lnk = ProcessFile(file,q,r,dt,nid,neb);
+                        if (lnk != null)
+                        {
+                            _processedFiles.Add(lnk);
+                        }
+                    }
+
+                    sw.Stop();
+
+                    if (q)
+                    {
+                        _logger.Info("");
+                    }
+
+                    _logger.Info(
+                        $"Processed {lnkFiles.Length - _failedFiles.Count:N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
+                    if (_failedFiles.Count > 0)
+                    {
+                        _logger.Info("");
+                        _logger.Warn("Failed files");
+                        foreach (var failedFile in _failedFiles)
+                        {
+                            _logger.Info($"  {failedFile}");
+                        }
                     }
                 }
 
-                sw.Stop();
-
-                if (_fluentCommandLineParser.Object.Quiet)
+                if (_processedFiles.Count > 0)
                 {
                     _logger.Info("");
-                }
 
-                _logger.Info(
-                    $"Processed {lnkFiles.Length - _failedFiles.Count:N0} out of {lnkFiles.Length:N0} files in {sw.Elapsed.TotalSeconds:N4} seconds");
-                if (_failedFiles.Count > 0)
-                {
-                    _logger.Info("");
-                    _logger.Warn("Failed files");
-                    foreach (var failedFile in _failedFiles)
+                    try
                     {
-                        _logger.Info($"  {failedFile}");
-                    }
-                }
-            }
+                        CsvWriter csvWriter = null;
+                        StreamWriter sw = null;
 
-            if (_processedFiles.Count > 0)
-            {
-                _logger.Info("");
-
-                try
-                {
-                    CsvWriter csv = null;
-                    StreamWriter sw = null;
-
-                    if (_fluentCommandLineParser.Object.CsvDirectory?.Length > 0)
-                    {
-                        if (Directory.Exists(_fluentCommandLineParser.Object.CsvDirectory) == false)
+                        if (csv?.Length > 0)
                         {
-                            _logger.Warn(
-                                $"'{_fluentCommandLineParser.Object.CsvDirectory} does not exist. Creating...'");
-                            Directory.CreateDirectory(_fluentCommandLineParser.Object.CsvDirectory);
-                        }
-
-                        var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.csv";
-
-                        if (_fluentCommandLineParser.Object.CsvName.IsNullOrEmpty() == false)
-                        {
-                            outName = Path.GetFileName(_fluentCommandLineParser.Object.CsvName);
-                        }
-
-                        var outFile = Path.Combine(_fluentCommandLineParser.Object.CsvDirectory, outName);
-
-                        _fluentCommandLineParser.Object.CsvDirectory =
-                            Path.GetFullPath(outFile);
-                        _logger.Warn(
-                            $"CSV output will be saved to '{Path.GetFullPath(outFile)}'");
-
-                        try
-                        {
-                            sw = new StreamWriter(outFile);
-                            csv = new CsvWriter(sw,CultureInfo.InvariantCulture);
-
-                            csv.WriteHeader(typeof(CsvOut));
-                            csv.NextRecord();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.Error(
-                                $"Unable to open '{outFile}' for writing. CSV export canceled. Error: {ex.Message}");
-                        }
-                    }
-
-                    if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0)
-                    {
-                        if (Directory.Exists(_fluentCommandLineParser.Object.JsonDirectory) == false)
-                        {
-                            _logger.Warn(
-                                $"'{_fluentCommandLineParser.Object.JsonDirectory} does not exist. Creating...'");
-                            Directory.CreateDirectory(_fluentCommandLineParser.Object.JsonDirectory);
-                        }
-
-                        _logger.Warn($"Saving json output to '{_fluentCommandLineParser.Object.JsonDirectory}'");
-                    }
-
-                    if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
-                    {
-                        {
-                            if (Directory.Exists(_fluentCommandLineParser.Object.XmlDirectory) == false)
+                            if (Directory.Exists(csv) == false)
                             {
                                 _logger.Warn(
-                                    $"'{_fluentCommandLineParser.Object.XmlDirectory} does not exist. Creating...'");
-                                Directory.CreateDirectory(_fluentCommandLineParser.Object.XmlDirectory);
+                                    $"'{csv} does not exist. Creating...'");
+                                Directory.CreateDirectory(csv);
                             }
 
-                        }
-                        _logger.Warn($"Saving XML output to '{_fluentCommandLineParser.Object.XmlDirectory}'");
-                    }
+                            var outName = $"{DateTimeOffset.Now.ToString("yyyyMMddHHmmss")}_LECmd_Output.csv";
 
-                    XmlTextWriter xml = null;
-                    StreamWriter jsonOut = null;
-
-                    if (_fluentCommandLineParser.Object.JsonDirectory?.Length > 0) 
-                    {
-                        JsConfig.DateHandler = DateHandler.ISO8601;
-
-                        if (Directory.Exists(_fluentCommandLineParser.Object.JsonDirectory) == false)
-                        {
-                            Directory.CreateDirectory(_fluentCommandLineParser.Object.JsonDirectory);
-                        }
-
-                        var outName =
-                            $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output.json";
-                        var outFile = Path.Combine(_fluentCommandLineParser.Object.JsonDirectory, outName);
-
-
-                        jsonOut = new StreamWriter(new FileStream(outFile,FileMode.OpenOrCreate,FileAccess.Write),new UTF8Encoding(false));
-                    }
-
-                    if (_fluentCommandLineParser.Object.xHtmlDirectory?.Length > 0)
-                    {
-
-                        var outDir = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory,
-                            $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output_for_{_fluentCommandLineParser.Object.xHtmlDirectory.Replace(@":\", "_").Replace(@"\", "_")}");
-
-                        if (Directory.Exists(outDir) == false)
-                        {
-                            Directory.CreateDirectory(outDir);
-                        }
-
-                        File.WriteAllText(Path.Combine(outDir, "normalize.css"), Resources.normalize);
-                        File.WriteAllText(Path.Combine(outDir, "style.css"), Resources.style);
-
-                        var outFile = Path.Combine(_fluentCommandLineParser.Object.xHtmlDirectory, outDir, "index.xhtml");
-
-                        _logger.Warn($"Saving HTML output to '{outFile}'");
-
-                        xml = new XmlTextWriter(outFile, Encoding.UTF8)
-                        {
-                            Formatting = Formatting.Indented,
-                            Indentation = 4
-                        };
-
-                        xml.WriteStartDocument();
-
-                        xml.WriteProcessingInstruction("xml-stylesheet", "href=\"normalize.css\"");
-                        xml.WriteProcessingInstruction("xml-stylesheet", "href=\"style.css\"");
-
-                        xml.WriteStartElement("document");
-                    }
-
-                    foreach (var processedFile in _processedFiles)
-                    {
-                        var o = GetCsvFormat(processedFile,false);
-
-                        try
-                        {
-                            csv?.WriteRecord(o);
-                            csv?.NextRecord();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.Error(
-                                $"Error writing record for '{processedFile.SourceFile}' to '{_fluentCommandLineParser.Object.CsvDirectory}'. Error: {ex.Message}");
-                        }
-
-                        if (jsonOut != null)
-                        {
-                            var oldDt = _fluentCommandLineParser.Object.DateTimeFormat;
-
-                            _fluentCommandLineParser.Object.DateTimeFormat = "o";
-
-                            var cs = GetCsvFormat(processedFile,true);
-
-                            _fluentCommandLineParser.Object.DateTimeFormat = oldDt;
-
-                            if (_fluentCommandLineParser.Object.JsonPretty)
+                            if (csvf.IsNullOrEmpty() == false)
                             {
-                                jsonOut.WriteLine(cs.Dump());
+                                outName = Path.GetFileName(csvf);
                             }
-                            else
+
+                            var outFile = Path.Combine(csv, outName);
+
+                            csv = Path.GetFullPath(outFile);
+                            _logger.Warn(
+                                $"CSV output will be saved to '{Path.GetFullPath(outFile)}'");
+
+                            try
                             {
-                                jsonOut.WriteLine(cs.ToJson());
-                                
+                                sw = new StreamWriter(outFile);
+                                csvWriter = new CsvWriter(sw, CultureInfo.InvariantCulture);
+
+                                csvWriter.WriteHeader(typeof(CsvOut));
+                                csvWriter.NextRecord();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(
+                                    $"Unable to open '{outFile}' for writing. CSV export canceled. Error: {ex.Message}");
+                            }
+                        }
+
+                        if (json?.Length > 0)
+                        {
+                            if (Directory.Exists(json) == false)
+                            {
+                                _logger.Warn(
+                                    $"'{json} does not exist. Creating...'");
+                                Directory.CreateDirectory(json);
+                            }
+
+                            _logger.Warn($"Saving json output to '{json}'");
+                        }
+
+                        if (xml?.Length > 0)
+                        {
+                            {
+                                if (Directory.Exists(xml) == false)
+                                {
+                                    _logger.Warn(
+                                        $"'{xml} does not exist. Creating...'");
+                                    Directory.CreateDirectory(xml);
+                                }
+
+                            }
+                            _logger.Warn($"Saving XML output to '{xml}'");
+                        }
+
+                        XmlTextWriter xmlTextWriter = null;
+                        StreamWriter jsonOut = null;
+
+                        if (json?.Length > 0)
+                        {
+                            JsConfig.DateHandler = DateHandler.ISO8601;
+
+                            if (Directory.Exists(json) == false)
+                            {
+                                Directory.CreateDirectory(json);
+                            }
+
+                            var outName =
+                                $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output.json";
+                            var outFile = Path.Combine(json, outName);
+
+
+                            jsonOut = new StreamWriter(new FileStream(outFile, FileMode.OpenOrCreate, FileAccess.Write), new UTF8Encoding(false));
+                        }
+
+                        if (html?.Length > 0)
+                        {
+
+                            var outDir = Path.Combine(html,
+                                $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_LECmd_Output_for_{html.Replace(@":\", "_").Replace(@"\", "_")}");
+
+                            if (Directory.Exists(outDir) == false)
+                            {
+                                Directory.CreateDirectory(outDir);
+                            }
+
+                            File.WriteAllText(Path.Combine(outDir, "normalize.css"), Resources.normalize);
+                            File.WriteAllText(Path.Combine(outDir, "style.css"), Resources.style);
+
+                            var outFile = Path.Combine(html, outDir, "index.xhtml");
+
+                            _logger.Warn($"Saving HTML output to '{outFile}'");
+
+                            xmlTextWriter = new XmlTextWriter(outFile, Encoding.UTF8)
+                            {
+                                Formatting = Formatting.Indented,
+                                Indentation = 4
+                            };
+
+                            xmlTextWriter.WriteStartDocument();
+
+                            xmlTextWriter.WriteProcessingInstruction("xml-stylesheet", "href=\"normalize.css\"");
+                            xmlTextWriter.WriteProcessingInstruction("xml-stylesheet", "href=\"style.css\"");
+
+                            xmlTextWriter.WriteStartElement("document");
+                        }
+
+                        foreach (var processedFile in _processedFiles)
+                        {
+                            var o = GetCsvFormat(processedFile, false,dt);
+
+                            try
+                            {
+                                csvWriter?.WriteRecord(o);
+                                csvWriter?.NextRecord();
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(
+                                    $"Error writing record for '{processedFile.SourceFile}' to '{csv}'. Error: {ex.Message}");
+                            }
+
+                            if (jsonOut != null)
+                            {
+                                var oldDt = dt;
+
+                                dt = "o";
+
+                                var cs = GetCsvFormat(processedFile, true,dt);
+
+                                dt = oldDt;
+
+                                if (pretty)
+                                {
+                                    jsonOut.WriteLine(cs.Dump());
+                                }
+                                else
+                                {
+                                    jsonOut.WriteLine(cs.ToJson());
+
+                                }
+                            }
+
+
+                            //XHTML
+                            xmlTextWriter?.WriteStartElement("Container");
+                            xmlTextWriter?.WriteElementString("SourceFile", o.SourceFile);
+                            xmlTextWriter?.WriteElementString("SourceCreated", o.SourceCreated);
+                            xmlTextWriter?.WriteElementString("SourceModified", o.SourceModified);
+                            xmlTextWriter?.WriteElementString("SourceAccessed", o.SourceAccessed);
+
+                            xmlTextWriter?.WriteElementString("TargetCreated", o.TargetCreated);
+                            xmlTextWriter?.WriteElementString("TargetModified", o.TargetModified);
+                            xmlTextWriter?.WriteElementString("TargetAccessed", o.TargetAccessed);
+
+                            xmlTextWriter?.WriteElementString("FileSize", o.FileSize.ToString());
+                            xmlTextWriter?.WriteElementString("RelativePath", o.RelativePath);
+                            xmlTextWriter?.WriteElementString("WorkingDirectory", o.WorkingDirectory);
+                            xmlTextWriter?.WriteElementString("FileAttributes", o.FileAttributes);
+                            xmlTextWriter?.WriteElementString("HeaderFlags", o.HeaderFlags);
+                            xmlTextWriter?.WriteElementString("DriveType", o.DriveType);
+                            xmlTextWriter?.WriteElementString("VolumeSerialNumber", o.VolumeSerialNumber);
+                            xmlTextWriter?.WriteElementString("VolumeLabel", o.VolumeLabel);
+                            xmlTextWriter?.WriteElementString("LocalPath", o.LocalPath);
+                            xmlTextWriter?.WriteElementString("NetworkPath", o.NetworkPath);
+                            xmlTextWriter?.WriteElementString("CommonPath", o.CommonPath);
+                            xmlTextWriter?.WriteElementString("Arguments", o.Arguments);
+
+                            xmlTextWriter?.WriteElementString("TargetIDAbsolutePath", o.TargetIDAbsolutePath);
+
+                            xmlTextWriter?.WriteElementString("TargetMFTEntryNumber", $"{o.TargetMFTEntryNumber}");
+                            xmlTextWriter?.WriteElementString("TargetMFTSequenceNumber", $"{o.TargetMFTSequenceNumber}");
+
+                            xmlTextWriter?.WriteElementString("MachineID", o.MachineID);
+                            xmlTextWriter?.WriteElementString("MachineMACAddress", o.MachineMACAddress);
+                            xmlTextWriter?.WriteElementString("MACVendor", o.MACVendor);
+
+                            xmlTextWriter?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn);
+
+                            xmlTextWriter?.WriteElementString("ExtraBlocksPresent", o.ExtraBlocksPresent);
+
+                            xmlTextWriter?.WriteEndElement();
+
+                            if (xml?.Length > 0)
+                            {
+                                SaveXML(o, xml);
                             }
                         }
 
 
-                        //XHTML
-                        xml?.WriteStartElement("Container");
-                        xml?.WriteElementString("SourceFile", o.SourceFile);
-                        xml?.WriteElementString("SourceCreated", o.SourceCreated);
-                        xml?.WriteElementString("SourceModified", o.SourceModified);
-                        xml?.WriteElementString("SourceAccessed", o.SourceAccessed);
+                        //Close CSV stuff
+                        sw?.Flush();
+                        sw?.Close();
 
-                        xml?.WriteElementString("TargetCreated", o.TargetCreated);
-                        xml?.WriteElementString("TargetModified", o.TargetModified);
-                        xml?.WriteElementString("TargetAccessed", o.TargetAccessed);
+                        //close json
+                        jsonOut?.Flush();
+                        jsonOut?.Close();
 
-                        xml?.WriteElementString("FileSize", o.FileSize.ToString());
-                        xml?.WriteElementString("RelativePath", o.RelativePath);
-                        xml?.WriteElementString("WorkingDirectory", o.WorkingDirectory);
-                        xml?.WriteElementString("FileAttributes", o.FileAttributes);
-                        xml?.WriteElementString("HeaderFlags", o.HeaderFlags);
-                        xml?.WriteElementString("DriveType", o.DriveType);
-                        xml?.WriteElementString("VolumeSerialNumber", o.VolumeSerialNumber);
-                        xml?.WriteElementString("VolumeLabel", o.VolumeLabel);
-                        xml?.WriteElementString("LocalPath", o.LocalPath);
-                        xml?.WriteElementString("NetworkPath", o.NetworkPath);
-                        xml?.WriteElementString("CommonPath", o.CommonPath);
-                        xml?.WriteElementString("Arguments", o.Arguments);
-
-                        xml?.WriteElementString("TargetIDAbsolutePath", o.TargetIDAbsolutePath);
-
-                        xml?.WriteElementString("TargetMFTEntryNumber", $"{o.TargetMFTEntryNumber}");
-                        xml?.WriteElementString("TargetMFTSequenceNumber", $"{o.TargetMFTSequenceNumber}");
-
-                        xml?.WriteElementString("MachineID", o.MachineID);
-                        xml?.WriteElementString("MachineMACAddress", o.MachineMACAddress);
-                        xml?.WriteElementString("MACVendor", o.MACVendor);
-
-                        xml?.WriteElementString("TrackerCreatedOn", o.TrackerCreatedOn);
-
-                        xml?.WriteElementString("ExtraBlocksPresent", o.ExtraBlocksPresent);
-
-                        xml?.WriteEndElement();
-
-                        if (_fluentCommandLineParser.Object.XmlDirectory?.Length > 0)
-                        {
-                            SaveXML(o, _fluentCommandLineParser.Object.XmlDirectory);
-                        }
+                        //Close XML
+                        xmlTextWriter?.WriteEndElement();
+                        xmlTextWriter?.WriteEndDocument();
+                        xmlTextWriter?.Flush();
                     }
-
-
-                    //Close CSV stuff
-                    sw?.Flush();
-                    sw?.Close();
-
-                    //close json
-                    jsonOut?.Flush();
-                    jsonOut?.Close();
-
-                    //Close XML
-                    xml?.WriteEndElement();
-                    xml?.WriteEndDocument();
-                    xml?.Flush();
+                    catch (Exception ex)
+                    {
+                        _logger.Error(
+                            $"Error exporting data! Error: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.Error(
-                        $"Error exporting data! Error: {ex.Message}");
-                }
-            }
+            });
+
+            return rootCommand.InvokeAsync(args).Result;
+            
+            
+
         }
-
-        private static CsvOut GetCsvFormat(LnkFile lnk, bool nukeNulls)
+        
+        
+        private static CsvOut GetCsvFormat(LnkFile lnk, bool nukeNulls,string datetimeFormat)
         {
 
             string netPath = String.Empty;
@@ -622,12 +668,12 @@ namespace LECmd
             var csOut = new CsvOut
             {
                 SourceFile = lnk.SourceFile.Replace("\\\\?\\",""),
-                SourceCreated =  lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
-                SourceModified = lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
-                SourceAccessed = lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty,
-                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
-                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
-                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? String.Empty : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat),
+                SourceCreated =  lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty,
+                SourceModified = lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty,
+                SourceAccessed = lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty,
+                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(datetimeFormat),
+                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(datetimeFormat),
+                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? String.Empty : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat),
                 CommonPath = lnk.CommonPath,
                 VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
                 VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
@@ -673,7 +719,7 @@ namespace LECmd
             {
                 var tnbBlock = tnb as TrackerDataBaseBlock;
 
-                csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
+                csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(datetimeFormat);
 
                 csOut.MachineID = tnbBlock?.MachineId;
                 csOut.MachineMACAddress = tnbBlock?.MacAddress;
@@ -765,9 +811,9 @@ namespace LECmd
             return absPath;
         }
 
-        private static LnkFile ProcessFile(string lnkFile)
+        private static LnkFile ProcessFile(string lnkFile,bool quiet, bool removableOnly, string datetimeFormat,bool nid,bool neb)
         {
-            if (_fluentCommandLineParser.Object.Quiet == false)
+            if (quiet == false)
             {
                 _logger.Warn($"Processing '{lnkFile.Replace("\\\\?\\","")}'");
                 _logger.Info("");
@@ -780,24 +826,24 @@ namespace LECmd
             {
                 var lnk = Lnk.Lnk.LoadFile(lnkFile);
 
-                if (_fluentCommandLineParser.Object.RemovableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
+                if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
                 {
                     return null;
                 }
 
-                if (_fluentCommandLineParser.Object.Quiet == false)
+                if (quiet == false)
                 {
                     _logger.Error($"Source file: {lnk.SourceFile.Replace("\\\\?\\","")}");
-                    _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
-                    _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
-                    _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(_fluentCommandLineParser.Object.DateTimeFormat) ?? string.Empty}");
+                    _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty}");
+                    _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty}");
+                    _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty}");
                     _logger.Info("");
 
                     _logger.Warn("--- Header ---");
 
-                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
-                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
-                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString(_fluentCommandLineParser.Object.DateTimeFormat);
+                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString(datetimeFormat);
+                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString(datetimeFormat);
+                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat);
 
                     _logger.Info($"  Target created:  {tc}");
                     _logger.Info($"  Target modified: {tm}");
@@ -891,13 +937,13 @@ namespace LECmd
                         }
                     }
 
-                    if (_fluentCommandLineParser.Object.NoTargetIDList)
+                    if (nid)
                     {
                         _logger.Info("");
                         _logger.Warn($"(Target ID information suppressed. Lnk TargetID count: {lnk.TargetIDs.Count:N0})");
                     }
 
-                    if (lnk.TargetIDs.Count > 0 && !_fluentCommandLineParser.Object.NoTargetIDList)
+                    if (lnk.TargetIDs.Count > 0 && !nid)
                     {
                         _logger.Info("");
 
@@ -931,7 +977,7 @@ namespace LECmd
                                     _logger.Info($"    Short name: {b32.ShortName}");
                                     if (b32.LastModificationTime.HasValue)
                                     {
-                                        _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                        _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(datetimeFormat)}");
                                     }
                                     else
                                     {
@@ -960,7 +1006,7 @@ namespace LECmd
 
                                                 if (b4.CreatedOnTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -969,7 +1015,7 @@ namespace LECmd
 
                                                 if (b4.LastAccessTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -986,7 +1032,7 @@ namespace LECmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -1017,7 +1063,7 @@ namespace LECmd
                                     if (b3x.LastModificationTime.HasValue)
                                     {
                                         _logger.Info(
-                                            $"    Modified: {b3x.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                            $"    Modified: {b3x.LastModificationTime.Value.ToString(datetimeFormat)}");
                                     }
                                     else
                                     {
@@ -1045,7 +1091,7 @@ namespace LECmd
 
                                                 if (b4.CreatedOnTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -1054,7 +1100,7 @@ namespace LECmd
 
                                                 if (b4.LastAccessTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -1071,7 +1117,7 @@ namespace LECmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -1204,7 +1250,7 @@ namespace LECmd
 
                                     if (b74.LastModificationTime.HasValue)
                                     {
-                                        _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                        _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(datetimeFormat)}");
                                     }
                                     else
                                     {
@@ -1232,7 +1278,7 @@ namespace LECmd
 
                                                 if (b4.CreatedOnTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -1241,7 +1287,7 @@ namespace LECmd
 
                                                 if (b4.LastAccessTime.HasValue)
                                                 {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
                                                 }
                                                 else
                                                 {
@@ -1257,7 +1303,7 @@ namespace LECmd
                                             {
                                                 var b25 = extensionBlock as Beef0025;
                                                 _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
                                             }
                                             else if (extensionBlock is Beef0003)
                                             {
@@ -1295,14 +1341,14 @@ namespace LECmd
                         _logger.Error("--- End Target ID information ---");
                     }
 
-                    if (_fluentCommandLineParser.Object.NoExtraBlocks)
+                    if (neb)
                     {
                         _logger.Info("");
                         _logger.Warn(
                             $"(Extra blocks information suppressed. Lnk Extra block count: {lnk.ExtraBlocks.Count:N0})");
                     }
 
-                    if (lnk.ExtraBlocks.Count > 0 && !_fluentCommandLineParser.Object.NoExtraBlocks)
+                    if (lnk.ExtraBlocks.Count > 0 && !neb)
                     {
                         _logger.Info("");
                         _logger.Error("--- Extra blocks information ---");
@@ -1429,7 +1475,7 @@ namespace LECmd
                                     _logger.Info($"   Machine ID: {tdb.MachineId}");
                                     _logger.Info($"   MAC Address: {tdb.MacAddress}");
                                     _logger.Info($"   MAC Vendor: {GetVendorFromMac(tdb.MacAddress)}");
-                                    _logger.Info($"   Creation: {tdb.CreationTime.ToString(_fluentCommandLineParser.Object.DateTimeFormat)}");
+                                    _logger.Info($"   Creation: {tdb.CreationTime.ToString(datetimeFormat)}");
                                     _logger.Info("");
                                     _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
                                     _logger.Info($"   Volume Droid Birth: {tdb.VolumeDroidBirth}");
@@ -1463,7 +1509,7 @@ namespace LECmd
 
                 sw.Stop();
 
-                if (_fluentCommandLineParser.Object.Quiet == false)
+                if (quiet == false)
                 {
                     _logger.Info("");
                 }
@@ -1471,7 +1517,7 @@ namespace LECmd
                 _logger.Info(
                     $"---------- Processed '{lnk.SourceFile.Replace("\\\\?\\","")}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
 
-                if (_fluentCommandLineParser.Object.Quiet == false)
+                if (quiet == false)
                 {
                     _logger.Info("\r\n");
                 }
@@ -1487,7 +1533,9 @@ namespace LECmd
             }
 
             return null;
-        }
+
+            }
+
 
         private static string GetVendorFromMac(string macAddress)
         {

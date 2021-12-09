@@ -354,7 +354,7 @@ namespace LECmd
                         var dirEnumOptions =
                             DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
                             DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
-                            DirectoryEnumerationOptions.BasicSearch | DirectoryEnumerationOptions.AsLongPath;
+                            DirectoryEnumerationOptions.BasicSearch ;
 
                         files2 =
                             Alphaleonis.Win32.Filesystem.Directory.EnumerateFileSystemEntries(d, dirEnumOptions, directoryEnumerationFilters);

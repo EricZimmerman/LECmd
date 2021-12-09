@@ -165,6 +165,8 @@ namespace LECmd
                 
             };
 
+            
+
             rootCommand.Description = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
                                       "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
                                       "\r\nhttps://github.com/EricZimmerman/LECmd";

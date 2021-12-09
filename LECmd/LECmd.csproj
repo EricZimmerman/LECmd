@@ -37,13 +37,13 @@
     <ApplicationIcon>PcDesktopCheck.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AlphaFS" Version="2.2.6" />
+    
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta1.21601.2" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.6.0-preview3.19128.7" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
   </ItemGroup>
-  <ItemGroup>
-    
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net461' ">
+    <PackageReference Include="AlphaFS" Version="2.2.6" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">

@@ -13,7 +13,12 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Xml;
-using Alphaleonis.Win32.Filesystem;
+#if NET461
+    using Alphaleonis.Win32.Filesystem;
+    using Directory = Alphaleonis.Win32.Filesystem.Directory;
+    using File = Alphaleonis.Win32.Filesystem.File;
+    using Path = Alphaleonis.Win32.Filesystem.Path;
+#endif
 using Exceptionless;
 using ExtensionBlocks;
 using Lnk;
@@ -25,9 +30,6 @@ using NLog.Targets;
 using ServiceStack;
 using ServiceStack.Text;
 using CsvWriter = CsvHelper.CsvWriter;
-using Directory = System.IO.Directory;
-using File = System.IO.File;
-using Path = System.IO.Path;
 using Resources = LECmd.Properties.Resources;
 using ShellBag = Lnk.ShellItems.ShellBag;
 using VolumeInfo = Lnk.VolumeInfo;

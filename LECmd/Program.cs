@@ -13,7 +13,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using System.Xml;
-#if NET461
+#if NET461_OR_GREATER 
     using Alphaleonis.Win32.Filesystem;
     using Directory = Alphaleonis.Win32.Filesystem.Directory;
     using File = Alphaleonis.Win32.Filesystem.File;
@@ -298,9 +298,6 @@ internal class Program
 
                     try
                     {
-
-
-                      
                         var mask = "*.lnk";
                         if (all)
                         {
@@ -321,7 +318,7 @@ internal class Program
                        files2 =
                             Directory.EnumerateFileSystemEntries(d, mask,enumerationOptions);
                         
-#else
+#elif NET461
 // Legacy implementation for previous frameworks
 
                         var directoryEnumerationFilters = new DirectoryEnumerationFilters();
@@ -951,12 +948,12 @@ internal class Program
                 {
                     _logger.Info("");
 
-                    var absPath = string.Empty;
-
-                    foreach (var shellBag in lnk.TargetIDs)
-                    {
-                        absPath += shellBag.Value + @"\";
-                    }
+                    // var absPath = string.Empty;
+                    //
+                    // foreach (var shellBag in lnk.TargetIDs)
+                    // {
+                    //     absPath += shellBag.Value + @"\";
+                    // }
 
                     _logger.Error("--- Target ID information (Format: Type ==> Value) ---");
                     _logger.Info("");
@@ -1165,7 +1162,7 @@ internal class Program
                                             if (intParsed)
                                             {
                                                 suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, propNameAsInt)}"
                                                         .PadRight(35);
                                             }
 

@@ -3,20 +3,8 @@
     <OutputType>Exe</OutputType>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <PublishUrl>publish\</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.5.0.0</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
     <AssemblyTitle>LECmd</AssemblyTitle>
     <Company>Eric Zimmerman</Company>
     <LangVersion>10</LangVersion>
@@ -29,6 +17,7 @@
     <TargetFrameworks>net461;net6.0</TargetFrameworks>
     <PackageVersion>1.5.0.0</PackageVersion>
     <Title>LECmd</Title>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -37,7 +26,6 @@
     <ApplicationIcon>PcDesktopCheck.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta1.21601.2" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.6.0-preview3.19128.7" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
@@ -67,12 +55,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    
     <PackageReference Include="CsvHelper" Version="27.2.1" />
     <PackageReference Include="Exceptionless" Version="4.6.2" />
-    <PackageReference Include="ExtensionBlocks" Version="1.2.0" />
-    
-    <PackageReference Include="GuidMapping" Version="1.0.0.4" />
+    <PackageReference Include="ExtensionBlocks" Version="1.2.0.1" />
+    <PackageReference Include="GuidMapping" Version="1.0.0.5" />
     <PackageReference Include="Lnk" Version="1.2.1.2" />
     <PackageReference Include="NLog" Version="4.7.13" />
     <PackageReference Include="ServiceStack.Text" Version="5.13.2" />

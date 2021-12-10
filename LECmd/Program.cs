@@ -34,166 +34,166 @@ using Resources = LECmd.Properties.Resources;
 using ShellBag = Lnk.ShellItems.ShellBag;
 using VolumeInfo = Lnk.VolumeInfo;
 
-namespace LECmd
+namespace LECmd;
+
+internal class Program
 {
-    internal class Program
+    private static Logger _logger;
+
+    private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
+
+    private static List<string> _failedFiles;
+
+    private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
+
+    private static List<LnkFile> _processedFiles;
+
+    private static void LoadMacs()
     {
-        private static Logger _logger;
+        var lines = Resources.MACs.Split(new[] {Environment.NewLine}, StringSplitOptions.None);
 
-        private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
-
-        private static List<string> _failedFiles;
-
-        private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
-
-        private static List<LnkFile> _processedFiles;
-
-        private static void LoadMacs()
+        foreach (var line in lines)
         {
-            var lines = Resources.MACs.Split(new[] {Environment.NewLine}, StringSplitOptions.None);
-
-            foreach (var line in lines)
+            if (line.Trim().Length == 0)
             {
-                if (line.Trim().Length == 0)
-                {
-                    continue;
-                }
-                var segs = line.ToUpperInvariant().Split('\t');
-                var key = segs[0].Trim();
-                var val = segs[1].Trim();
+                continue;
+            }
+            var segs = line.ToUpperInvariant().Split('\t');
+            var key = segs[0].Trim();
+            var val = segs[1].Trim();
 
-                if (MacList.ContainsKey(key) == false)
-                {
-                    MacList.Add(key, val);
-                }
+            if (MacList.ContainsKey(key) == false)
+            {
+                MacList.Add(key, val);
             }
         }
+    }
 
-        private static bool IsAdministrator()
+    private static bool IsAdministrator()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return true;
-            }
-
-            var identity = WindowsIdentity.GetCurrent();
-            var principal = new WindowsPrincipal(identity);
-            return principal.IsInRole(WindowsBuiltInRole.Administrator);
-
+            return true;
         }
 
-        private static int Main(string[] args)
-        {
-            ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
+        var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
 
-            LoadMacs();
+    }
 
-            SetupNLog();
+    private static int Main(string[] args)
+    {
+        ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
+
+        LoadMacs();
+
+        SetupNLog();
             
-            _logger = LogManager.GetCurrentClassLogger();
+        _logger = LogManager.GetCurrentClassLogger();
 
          
             
             
-            var rootCommand = new RootCommand
-            {
-                new Option<string>(
-                    "-f",
+        var rootCommand = new RootCommand
+        {
+            new Option<string>(
+                "-f",
                     
-                    description: "File to process. Either this or -d is required"),
-                new Option<string>(
-                    "-d",
-                    description: "Directory to recursively process. Either this or -f is required"),
-                new Option<bool>(
-                    "-r",
-                    getDefaultValue:()=>false,
-                    "Only process lnk files pointing to removable drives"),
+                description: "File to process. Either this or -d is required"),
+            new Option<string>(
+                "-d",
+                description: "Directory to recursively process. Either this or -f is required"),
+            new Option<bool>(
+                "-r",
+                getDefaultValue:()=>false,
+                "Only process lnk files pointing to removable drives"),
                 
-                new Option<bool>(
-                    "-q",
-                    getDefaultValue:()=>false,
-                    "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv"),
+            new Option<bool>(
+                "-q",
+                getDefaultValue:()=>false,
+                "Only show the filename being processed vs all output. Useful to speed up exporting to json and/or csv"),
 
-                new Option<bool>(
-                    "--all",
-                    getDefaultValue:()=>false,
-                    "Process all files in directory vs. only files matching *.lnk"),
+            new Option<bool>(
+                "--all",
+                getDefaultValue:()=>false,
+                "Process all files in directory vs. only files matching *.lnk"),
                 
-                new Option<string>(
-                    "--csv",
-                    "Directory to save CSV formatted results to. Be sure to include the full path in double quotes"),
+            new Option<string>(
+                "--csv",
+                "Directory to save CSV formatted results to. Be sure to include the full path in double quotes"),
                 
-                new Option<string>(
-                    "--csvf",
-                    "File name to save CSV formatted results to. When present, overrides default name\r\n"),
+            new Option<string>(
+                "--csvf",
+                "File name to save CSV formatted results to. When present, overrides default name\r\n"),
                 
-                new Option<string>(
-                    "--xml",
-                    "Directory to save XML formatted results to. Be sure to include the full path in double quotes"),
+            new Option<string>(
+                "--xml",
+                "Directory to save XML formatted results to. Be sure to include the full path in double quotes"),
                 
-                new Option<string>(
-                    "--html",
-                    "Directory to save xhtml formatted results to. Be sure to include the full path in double quotes"),
+            new Option<string>(
+                "--html",
+                "Directory to save xhtml formatted results to. Be sure to include the full path in double quotes"),
                 
-                new Option<string>(
-                    "--json",
-                    "Directory to save json representation to. Use --pretty for a more human readable layout"),
+            new Option<string>(
+                "--json",
+                "Directory to save json representation to. Use --pretty for a more human readable layout"),
                 
-                new Option<bool>(
-                    "--pretty",
-                    getDefaultValue:()=>false,
-                    "When exporting to json, use a more human readable layout\r\n"),
+            new Option<bool>(
+                "--pretty",
+                getDefaultValue:()=>false,
+                "When exporting to json, use a more human readable layout\r\n"),
                 
               
-                new Option<bool>(
-                    "--nid",
-                    getDefaultValue:()=>false,
-                    "Suppress Target ID list details from being displayed"),
+            new Option<bool>(
+                "--nid",
+                getDefaultValue:()=>false,
+                "Suppress Target ID list details from being displayed"),
                 
-                new Option<bool>(
-                    "--neb",
-                    getDefaultValue:()=>false,
-                    "Suppress Extra blocks information from being displayed\r\n"),
+            new Option<bool>(
+                "--neb",
+                getDefaultValue:()=>false,
+                "Suppress Extra blocks information from being displayed\r\n"),
                 
-                new Option<string>(
-                    "--dt",
-                    getDefaultValue:()=>"yyyy-MM-dd HH:mm:ss",
-                    "The custom date/time format to use when displaying time stamps. See https://goo.gl/CNVq0k for options"),
+            new Option<string>(
+                "--dt",
+                getDefaultValue:()=>"yyyy-MM-dd HH:mm:ss",
+                "The custom date/time format to use when displaying time stamps. See https://goo.gl/CNVq0k for options"),
                 
-                new Option<bool>(
-                    "--mp",
-                    getDefaultValue:()=>false,
-                    "Display higher precision for time stamps"),
+            new Option<bool>(
+                "--mp",
+                getDefaultValue:()=>false,
+                "Display higher precision for time stamps"),
                 
-            };
+        };
 
             
 
-            rootCommand.Description = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
-                                      "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
-                                      "\r\nhttps://github.com/EricZimmerman/LECmd";
+        rootCommand.Description = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
+                                  "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
+                                  "\r\nhttps://github.com/EricZimmerman/LECmd";
 
             
             
-            var header =
-                $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
-                "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
-                "\r\nhttps://github.com/EricZimmerman/LECmd";
+        var header =
+            $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
+            "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
+            "\r\nhttps://github.com/EricZimmerman/LECmd";
                 
 
-            var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
-                         @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
-                         @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
-                         @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t" + 
-                         "\r\n\t"+
-                         "  Short options (single letter) are prefixed with a single dash. Long commands are prefixed with two dashes\r\n";
+        var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
+                     @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
+                     @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
+                     @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
+                     @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t" + 
+                     "\r\n\t"+
+                     "  Short options (single letter) are prefixed with a single dash. Long commands are prefixed with two dashes\r\n";
 
             
           
-            //<string, string, bool, bool,bool,string, string, string, string, string, bool, bool, bool, string, bool>
-            rootCommand.Handler = CommandHandler.Create(
-                (string f, string d, bool r, bool q, bool all, string  csv, string  csvf, string xml, string html,string json, bool pretty,bool nid, bool neb,string dt,bool mp) =>
+        //<string, string, bool, bool,bool,string, string, string, string, string, bool, bool, bool, string, bool>
+        rootCommand.Handler = CommandHandler.Create(
+            (string f, string d, bool r, bool q, bool all, string  csv, string  csvf, string xml, string html,string json, bool pretty,bool nid, bool neb,string dt,bool mp) =>
             {
                 
                 if (f.IsNullOrEmpty() && d.IsNullOrEmpty())
@@ -363,8 +363,8 @@ namespace LECmd
                         files2 =
                             Alphaleonis.Win32.Filesystem.Directory.EnumerateFileSystemEntries(d, dirEnumOptions, directoryEnumerationFilters);
 
-                         // files2 =
-                         //    Directory.EnumerateFileSystemEntries(d, mask,SearchOption.AllDirectories);
+                        // files2 =
+                        //    Directory.EnumerateFileSystemEntries(d, mask,SearchOption.AllDirectories);
                         
 
 #endif
@@ -652,993 +652,992 @@ namespace LECmd
                 }
             });
 
-            return rootCommand.InvokeAsync(args).Result;
+        return rootCommand.InvokeAsync(args).Result;
             
             
 
-        }
+    }
         
         
-        private static CsvOut GetCsvFormat(LnkFile lnk, bool nukeNulls,string datetimeFormat)
+    private static CsvOut GetCsvFormat(LnkFile lnk, bool nukeNulls,string datetimeFormat)
+    {
+
+        string netPath = String.Empty;
+            
+        if (lnk.NetworkShareInfo != null)
         {
+            netPath = lnk.NetworkShareInfo.NetworkShareName;
+        }
 
-            string netPath = String.Empty;
-            
-            if (lnk.NetworkShareInfo != null)
-            {
-                netPath = lnk.NetworkShareInfo.NetworkShareName;
-            }
-
-            var csOut = new CsvOut
-            {
-                SourceFile = lnk.SourceFile.Replace("\\\\?\\",""),
-                SourceCreated =  lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty,
-                SourceModified = lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty,
-                SourceAccessed = lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty,
-                TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(datetimeFormat),
-                TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(datetimeFormat),
-                TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? String.Empty : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat),
-                CommonPath = lnk.CommonPath,
-                VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
-                VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
-                DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType),
-                FileAttributes = lnk.Header.FileAttributes.ToString(),
-                FileSize = lnk.Header.FileSize,
-                HeaderFlags = lnk.Header.DataFlags.ToString(),
-                LocalPath = lnk.LocalPath,
-                NetworkPath = netPath,
-                RelativePath = lnk.RelativePath,
-                Arguments = lnk.Arguments
-            };
+        var csOut = new CsvOut
+        {
+            SourceFile = lnk.SourceFile.Replace("\\\\?\\",""),
+            SourceCreated =  lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty,
+            SourceModified = lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty,
+            SourceAccessed = lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty,
+            TargetCreated = lnk.Header.TargetCreationDate.Year == 1601 ?  string.Empty:lnk.Header.TargetCreationDate.ToString(datetimeFormat),
+            TargetModified = lnk.Header.TargetModificationDate.Year == 1601 ? string.Empty : lnk.Header.TargetModificationDate.ToString(datetimeFormat),
+            TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601 ? String.Empty : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat),
+            CommonPath = lnk.CommonPath,
+            VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
+            VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
+            DriveType = lnk.VolumeInfo == null ? "(None)" : GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType),
+            FileAttributes = lnk.Header.FileAttributes.ToString(),
+            FileSize = lnk.Header.FileSize,
+            HeaderFlags = lnk.Header.DataFlags.ToString(),
+            LocalPath = lnk.LocalPath,
+            NetworkPath = netPath,
+            RelativePath = lnk.RelativePath,
+            Arguments = lnk.Arguments
+        };
 
          
 
-            if (lnk.TargetIDs?.Count > 0)
+        if (lnk.TargetIDs?.Count > 0)
+        {
+            csOut.TargetIDAbsolutePath = GetAbsolutePathFromTargetIDs(lnk.TargetIDs);
+        }
+
+        csOut.WorkingDirectory = lnk.WorkingDirectory;
+
+        var ebPresent = string.Empty;
+
+        if (lnk.ExtraBlocks.Count > 0)
+        {
+            var names = new List<string>();
+
+            foreach (var extraDataBase in lnk.ExtraBlocks)
             {
-                csOut.TargetIDAbsolutePath = GetAbsolutePathFromTargetIDs(lnk.TargetIDs);
+                names.Add(extraDataBase.GetType().Name);
             }
 
-            csOut.WorkingDirectory = lnk.WorkingDirectory;
+            ebPresent = string.Join(", ", names);
+        }
 
-            var ebPresent = string.Empty;
+        csOut.ExtraBlocksPresent = ebPresent;
 
-            if (lnk.ExtraBlocks.Count > 0)
+        var tnb = lnk.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
+
+
+        if (tnb != null)
+        {
+            var tnbBlock = tnb as TrackerDataBaseBlock;
+
+            csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(datetimeFormat);
+
+            csOut.MachineID = tnbBlock?.MachineId;
+            csOut.MachineMACAddress = tnbBlock?.MacAddress;
+            csOut.MACVendor = GetVendorFromMac(tnbBlock?.MacAddress);
+        }
+
+        if (lnk.TargetIDs?.Count > 0)
+        {
+            var si = lnk.TargetIDs.Last();
+
+            if (si.ExtensionBlocks?.Count > 0)
             {
-                var names = new List<string>();
-
-                foreach (var extraDataBase in lnk.ExtraBlocks)
+                var eb = si.ExtensionBlocks.LastOrDefault(t => t is Beef0004);
+                if (eb is Beef0004)
                 {
-                    names.Add(extraDataBase.GetType().Name);
-                }
-
-                ebPresent = string.Join(", ", names);
-            }
-
-            csOut.ExtraBlocksPresent = ebPresent;
-
-            var tnb = lnk.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
-
-
-            if (tnb != null)
-            {
-                var tnbBlock = tnb as TrackerDataBaseBlock;
-
-                csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(datetimeFormat);
-
-                csOut.MachineID = tnbBlock?.MachineId;
-                csOut.MachineMACAddress = tnbBlock?.MacAddress;
-                csOut.MACVendor = GetVendorFromMac(tnbBlock?.MacAddress);
-            }
-
-            if (lnk.TargetIDs?.Count > 0)
-            {
-                var si = lnk.TargetIDs.Last();
-
-                if (si.ExtensionBlocks?.Count > 0)
-                {
-                    var eb = si.ExtensionBlocks.LastOrDefault(t => t is Beef0004);
-                    if (eb is Beef0004)
+                    var eb4 = eb as Beef0004;
+                    if (eb4.MFTInformation.MFTEntryNumber != null)
                     {
-                        var eb4 = eb as Beef0004;
-                        if (eb4.MFTInformation.MFTEntryNumber != null)
-                        {
-                            csOut.TargetMFTEntryNumber = $"0x{eb4.MFTInformation.MFTEntryNumber.Value.ToString("X")}";
-                        }
+                        csOut.TargetMFTEntryNumber = $"0x{eb4.MFTInformation.MFTEntryNumber.Value.ToString("X")}";
+                    }
 
-                        if (eb4.MFTInformation.MFTSequenceNumber != null)
-                        {
-                            csOut.TargetMFTSequenceNumber =
-                                $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}";
-                        }
+                    if (eb4.MFTInformation.MFTSequenceNumber != null)
+                    {
+                        csOut.TargetMFTSequenceNumber =
+                            $"0x{eb4.MFTInformation.MFTSequenceNumber.Value.ToString("X")}";
                     }
                 }
             }
+        }
 
-            if (nukeNulls)
+        if (nukeNulls)
+        {
+            foreach(var prop in csOut.GetType().GetProperties())
             {
-                foreach(var prop in csOut.GetType().GetProperties())
-                {
                     
-                    if ( prop.GetValue(csOut) as string == string.Empty)
-                    {
-                        prop.SetValue(csOut,null);
-                    }
-                }
-            }
-
-
-            return csOut;
-        }
-
-        private static void SaveXML(CsvOut csout, string outDir)
-        {
-            try
-            {
-                if (Directory.Exists(outDir) == false)
+                if ( prop.GetValue(csOut) as string == string.Empty)
                 {
-                    Directory.CreateDirectory(outDir);
+                    prop.SetValue(csOut,null);
                 }
-
-                var outName =
-                    $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(csout.SourceFile)}.xml";
-                var outFile = Path.Combine(outDir, outName);
-
-
-                File.WriteAllText(outFile, csout.ToXml());
             }
-            catch (Exception ex)
+        }
+
+
+        return csOut;
+    }
+
+    private static void SaveXML(CsvOut csout, string outDir)
+    {
+        try
+        {
+            if (Directory.Exists(outDir) == false)
             {
-                _logger.Error($"Error exporting XML for '{csout.SourceFile}'. Error: {ex.Message}");
+                Directory.CreateDirectory(outDir);
             }
+
+            var outName =
+                $"{DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss")}_{Path.GetFileName(csout.SourceFile)}.xml";
+            var outFile = Path.Combine(outDir, outName);
+
+
+            File.WriteAllText(outFile, csout.ToXml());
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Error exporting XML for '{csout.SourceFile}'. Error: {ex.Message}");
+        }
+    }
+
+    private static string GetDescriptionFromEnumValue(Enum value)
+    {
+        var attribute = value.GetType()
+            .GetField(value.ToString())
+            .GetCustomAttributes(typeof(DescriptionAttribute), false)
+            .SingleOrDefault() as DescriptionAttribute;
+        return attribute?.Description;
+    }
+
+    private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)
+    {
+        var absPath = string.Empty;
+
+        foreach (var shellBag in ids)
+        {
+            absPath += shellBag.Value + @"\";
         }
 
-        private static string GetDescriptionFromEnumValue(Enum value)
+        absPath = absPath.Substring(0, absPath.Length - 1);
+
+        return absPath;
+    }
+
+    private static LnkFile ProcessFile(string lnkFile,bool quiet, bool removableOnly, string datetimeFormat,bool nid,bool neb)
+    {
+        if (quiet == false)
         {
-            var attribute = value.GetType()
-                .GetField(value.ToString())
-                .GetCustomAttributes(typeof(DescriptionAttribute), false)
-                .SingleOrDefault() as DescriptionAttribute;
-            return attribute?.Description;
+            _logger.Warn($"Processing '{lnkFile.Replace("\\\\?\\","")}'");
+            _logger.Info("");
         }
 
-        private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)
-        {
-            var absPath = string.Empty;
+        var sw = new Stopwatch();
+        sw.Start();
 
-            foreach (var shellBag in ids)
+        try
+        {
+            var lnk = Lnk.Lnk.LoadFile(lnkFile);
+
+            if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
             {
-                absPath += shellBag.Value + @"\";
+                return null;
             }
 
-            absPath = absPath.Substring(0, absPath.Length - 1);
-
-            return absPath;
-        }
-
-        private static LnkFile ProcessFile(string lnkFile,bool quiet, bool removableOnly, string datetimeFormat,bool nid,bool neb)
-        {
             if (quiet == false)
             {
-                _logger.Warn($"Processing '{lnkFile.Replace("\\\\?\\","")}'");
+                _logger.Error($"Source file: {lnk.SourceFile.Replace("\\\\?\\","")}");
+                _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty}");
+                _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty}");
+                _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty}");
                 _logger.Info("");
-            }
 
-            var sw = new Stopwatch();
-            sw.Start();
+                _logger.Warn("--- Header ---");
 
-            try
-            {
-                var lnk = Lnk.Lnk.LoadFile(lnkFile);
+                var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString(datetimeFormat);
+                var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString(datetimeFormat);
+                var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat);
 
-                if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
+                _logger.Info($"  Target created:  {tc}");
+                _logger.Info($"  Target modified: {tm}");
+                _logger.Info($"  Target accessed: {ta}");
+                _logger.Info("");
+                _logger.Info($"  File size: {lnk.Header.FileSize:N0}");
+                _logger.Info($"  Flags: {lnk.Header.DataFlags}");
+                _logger.Info($"  File attributes: {lnk.Header.FileAttributes}");
+
+                if (lnk.Header.HotKey.Length > 0)
                 {
-                    return null;
+                    _logger.Info($"  Hot key: {lnk.Header.HotKey}");
                 }
 
-                if (quiet == false)
+                _logger.Info($"  Icon index: {lnk.Header.IconIndex}");
+                _logger.Info(
+                    $"  Show window: {lnk.Header.ShowWindow} ({GetDescriptionFromEnumValue(lnk.Header.ShowWindow)})");
+
+                _logger.Info("");
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasName) == Header.DataFlag.HasName)
                 {
-                    _logger.Error($"Source file: {lnk.SourceFile.Replace("\\\\?\\","")}");
-                    _logger.Info($"  Source created:  {lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty}");
-                    _logger.Info($"  Source modified: {lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty}");
-                    _logger.Info($"  Source accessed: {lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty}");
+                    _logger.Info($"Name: {lnk.Name}");
+                }
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasRelativePath) == Header.DataFlag.HasRelativePath)
+                {
+                    _logger.Info($"Relative Path: {lnk.RelativePath}");
+                }
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasWorkingDir) == Header.DataFlag.HasWorkingDir)
+                {
+                    _logger.Info($"Working Directory: {lnk.WorkingDirectory}");
+                }
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasArguments) == Header.DataFlag.HasArguments)
+                {
+                    _logger.Info($"Arguments: {lnk.Arguments}");
+                }
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasIconLocation) == Header.DataFlag.HasIconLocation)
+                {
+                    _logger.Info($"Icon Location: {lnk.IconLocation}");
+                }
+
+                if ((lnk.Header.DataFlags & Header.DataFlag.HasLinkInfo) == Header.DataFlag.HasLinkInfo)
+                {
+                    _logger.Info("");
+                    _logger.Error("--- Link information ---");
+                    _logger.Info($"Flags: {lnk.LocationFlags}");
+
+                    if (lnk.VolumeInfo != null)
+                    {
+                        _logger.Info("");
+                        _logger.Warn(">>Volume information");
+                        _logger.Info($"  Drive type: {GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType)}");
+                        _logger.Info($"  Serial number: {lnk.VolumeInfo.VolumeSerialNumber}");
+
+                        var label = lnk.VolumeInfo.VolumeLabel.Length > 0
+                            ? lnk.VolumeInfo.VolumeLabel
+                            : "(No label)";
+
+                        _logger.Info($"  Label: {label}");
+                    }
+
+                    if (lnk.NetworkShareInfo != null)
+                    {
+                        _logger.Info("");
+                        _logger.Warn("  Network share information");
+
+                        if (lnk.NetworkShareInfo.DeviceName.Length > 0)
+                        {
+                            _logger.Info($"    Device name: {lnk.NetworkShareInfo.DeviceName}");
+                        }
+
+                        _logger.Info($"    Share name: {lnk.NetworkShareInfo.NetworkShareName}");
+
+                        _logger.Info($"    Provider type: {lnk.NetworkShareInfo.NetworkProviderType}");
+                        _logger.Info($"    Share flags: {lnk.NetworkShareInfo.ShareFlags}");
+                        _logger.Info("");
+                    }
+
+                    if (lnk.LocalPath?.Length > 0)
+                    {
+                        _logger.Info($"  Local path: {lnk.LocalPath}");
+                    }
+
+                    if (lnk.CommonPath.Length > 0)
+                    {
+                        _logger.Info($"  Common path: {lnk.CommonPath}");
+                    }
+                }
+
+                if (nid)
+                {
+                    _logger.Info("");
+                    _logger.Warn($"(Target ID information suppressed. Lnk TargetID count: {lnk.TargetIDs.Count:N0})");
+                }
+
+                if (lnk.TargetIDs.Count > 0 && !nid)
+                {
                     _logger.Info("");
 
-                    _logger.Warn("--- Header ---");
+                    var absPath = string.Empty;
 
-                    var tc = lnk.Header.TargetCreationDate.Year == 1601 ? "" : lnk.Header.TargetCreationDate.ToString(datetimeFormat);
-                    var tm = lnk.Header.TargetModificationDate.Year == 1601 ? "" : lnk.Header.TargetModificationDate.ToString(datetimeFormat);
-                    var ta = lnk.Header.TargetLastAccessedDate.Year == 1601 ? "" : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat);
-
-                    _logger.Info($"  Target created:  {tc}");
-                    _logger.Info($"  Target modified: {tm}");
-                    _logger.Info($"  Target accessed: {ta}");
-                    _logger.Info("");
-                    _logger.Info($"  File size: {lnk.Header.FileSize:N0}");
-                    _logger.Info($"  Flags: {lnk.Header.DataFlags}");
-                    _logger.Info($"  File attributes: {lnk.Header.FileAttributes}");
-
-                    if (lnk.Header.HotKey.Length > 0)
+                    foreach (var shellBag in lnk.TargetIDs)
                     {
-                        _logger.Info($"  Hot key: {lnk.Header.HotKey}");
+                        absPath += shellBag.Value + @"\";
                     }
 
-                    _logger.Info($"  Icon index: {lnk.Header.IconIndex}");
-                    _logger.Info(
-                        $"  Show window: {lnk.Header.ShowWindow} ({GetDescriptionFromEnumValue(lnk.Header.ShowWindow)})");
-
+                    _logger.Error("--- Target ID information (Format: Type ==> Value) ---");
+                    _logger.Info("");
+                    _logger.Info($"  Absolute path: {GetAbsolutePathFromTargetIDs(lnk.TargetIDs)}");
                     _logger.Info("");
 
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasName) == Header.DataFlag.HasName)
+                    foreach (var shellBag in lnk.TargetIDs)
                     {
-                        _logger.Info($"Name: {lnk.Name}");
-                    }
+                        //HACK
+                        //This is a total hack until i can refactor some shellbag code to clean things up
 
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasRelativePath) == Header.DataFlag.HasRelativePath)
-                    {
-                        _logger.Info($"Relative Path: {lnk.RelativePath}");
-                    }
+                        var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
 
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasWorkingDir) == Header.DataFlag.HasWorkingDir)
-                    {
-                        _logger.Info($"Working Directory: {lnk.WorkingDirectory}");
-                    }
+                        _logger.Info($"  -{shellBag.FriendlyName} ==> {val}");
 
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasArguments) == Header.DataFlag.HasArguments)
-                    {
-                        _logger.Info($"Arguments: {lnk.Arguments}");
-                    }
-
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasIconLocation) == Header.DataFlag.HasIconLocation)
-                    {
-                        _logger.Info($"Icon Location: {lnk.IconLocation}");
-                    }
-
-                    if ((lnk.Header.DataFlags & Header.DataFlag.HasLinkInfo) == Header.DataFlag.HasLinkInfo)
-                    {
-                        _logger.Info("");
-                        _logger.Error("--- Link information ---");
-                        _logger.Info($"Flags: {lnk.LocationFlags}");
-
-                        if (lnk.VolumeInfo != null)
+                        switch (shellBag.GetType().Name.ToUpper())
                         {
-                            _logger.Info("");
-                            _logger.Warn(">>Volume information");
-                            _logger.Info($"  Drive type: {GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType)}");
-                            _logger.Info($"  Serial number: {lnk.VolumeInfo.VolumeSerialNumber}");
+                            case "SHELLBAG0X36":
+                            case "SHELLBAG0X32":
+                                var b32 = shellBag as ShellBag0X32;
 
-                            var label = lnk.VolumeInfo.VolumeLabel.Length > 0
-                                ? lnk.VolumeInfo.VolumeLabel
-                                : "(No label)";
-
-                            _logger.Info($"  Label: {label}");
-                        }
-
-                        if (lnk.NetworkShareInfo != null)
-                        {
-                            _logger.Info("");
-                            _logger.Warn("  Network share information");
-
-                            if (lnk.NetworkShareInfo.DeviceName.Length > 0)
-                            {
-                                _logger.Info($"    Device name: {lnk.NetworkShareInfo.DeviceName}");
-                            }
-
-                            _logger.Info($"    Share name: {lnk.NetworkShareInfo.NetworkShareName}");
-
-                            _logger.Info($"    Provider type: {lnk.NetworkShareInfo.NetworkProviderType}");
-                            _logger.Info($"    Share flags: {lnk.NetworkShareInfo.ShareFlags}");
-                            _logger.Info("");
-                        }
-
-                        if (lnk.LocalPath?.Length > 0)
-                        {
-                            _logger.Info($"  Local path: {lnk.LocalPath}");
-                        }
-
-                        if (lnk.CommonPath.Length > 0)
-                        {
-                            _logger.Info($"  Common path: {lnk.CommonPath}");
-                        }
-                    }
-
-                    if (nid)
-                    {
-                        _logger.Info("");
-                        _logger.Warn($"(Target ID information suppressed. Lnk TargetID count: {lnk.TargetIDs.Count:N0})");
-                    }
-
-                    if (lnk.TargetIDs.Count > 0 && !nid)
-                    {
-                        _logger.Info("");
-
-                        var absPath = string.Empty;
-
-                        foreach (var shellBag in lnk.TargetIDs)
-                        {
-                            absPath += shellBag.Value + @"\";
-                        }
-
-                        _logger.Error("--- Target ID information (Format: Type ==> Value) ---");
-                        _logger.Info("");
-                        _logger.Info($"  Absolute path: {GetAbsolutePathFromTargetIDs(lnk.TargetIDs)}");
-                        _logger.Info("");
-
-                        foreach (var shellBag in lnk.TargetIDs)
-                        {
-                            //HACK
-                            //This is a total hack until i can refactor some shellbag code to clean things up
-
-                            var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-
-                            _logger.Info($"  -{shellBag.FriendlyName} ==> {val}");
-
-                            switch (shellBag.GetType().Name.ToUpper())
-                            {
-                                case "SHELLBAG0X36":
-                                case "SHELLBAG0X32":
-                                    var b32 = shellBag as ShellBag0X32;
-
-                                    _logger.Info($"    Short name: {b32.ShortName}");
-                                    if (b32.LastModificationTime.HasValue)
-                                    {
-                                        _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(datetimeFormat)}");
-                                    }
-                                    else
-                                    {
-                                        _logger.Info($"    Modified:");
-                                    }
+                                _logger.Info($"    Short name: {b32.ShortName}");
+                                if (b32.LastModificationTime.HasValue)
+                                {
+                                    _logger.Info($"    Modified: {b32.LastModificationTime.Value.ToString(datetimeFormat)}");
+                                }
+                                else
+                                {
+                                    _logger.Info($"    Modified:");
+                                }
                                     
 
-                                    var extensionNumber32 = 0;
-                                    if (b32.ExtensionBlocks.Count > 0)
-                                    {
-                                        _logger.Info($"    Extension block count: {b32.ExtensionBlocks.Count:N0}");
-                                        _logger.Info("");
-                                        foreach (var extensionBlock in b32.ExtensionBlocks)
-                                        {
-                                            _logger.Info(
-                                                $"    --------- Block {extensionNumber32:N0} ({extensionBlock.GetType().Name}) ---------");
-                                            if (extensionBlock is Beef0004)
-                                            {
-                                                var b4 = extensionBlock as Beef0004;
-
-                                                _logger.Info($"    Long name: {b4.LongName}");
-                                                if (b4.LocalisedName.Length > 0)
-                                                {
-                                                    _logger.Info($"    Localized name: {b4.LocalisedName}");
-                                                }
-
-                                                if (b4.CreatedOnTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Created:");
-                                                }
-
-                                                if (b4.LastAccessTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Last access: ");
-                                                }
-                                                
-                                                if (b4.MFTInformation.MFTEntryNumber > 0)
-                                                {
-                                                    _logger.Info(
-                                                        $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
-                                                }
-                                            }
-                                            else if (extensionBlock is Beef0025)
-                                            {
-                                                var b25 = extensionBlock as Beef0025;
-                                                _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
-                                            }
-                                            else if (extensionBlock is Beef0003)
-                                            {
-                                                var b3 = extensionBlock as Beef0003;
-                                                _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
-                                            }
-                                            else if (extensionBlock is Beef001a)
-                                            {
-                                                var b3 = extensionBlock as Beef001a;
-                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
-                                            }
-
-                                            else
-                                            {
-                                                _logger.Info($"    {extensionBlock}");
-                                            }
-
-                                            extensionNumber32 += 1;
-                                        }
-                                    }
-
-                                    break;
-                                case "SHELLBAG0X31":
-
-                                    var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
-
-                                    _logger.Info($"    Short name: {b3x.ShortName}");
-                                    if (b3x.LastModificationTime.HasValue)
+                                var extensionNumber32 = 0;
+                                if (b32.ExtensionBlocks.Count > 0)
+                                {
+                                    _logger.Info($"    Extension block count: {b32.ExtensionBlocks.Count:N0}");
+                                    _logger.Info("");
+                                    foreach (var extensionBlock in b32.ExtensionBlocks)
                                     {
                                         _logger.Info(
-                                            $"    Modified: {b3x.LastModificationTime.Value.ToString(datetimeFormat)}");
-                                    }
-                                    else
-                                    {
-                                        _logger.Info($"    Modified:");
-                                    }
-
-                                    var extensionNumber = 0;
-                                    if (b3x.ExtensionBlocks.Count > 0)
-                                    {
-                                        _logger.Info($"    Extension block count: {b3x.ExtensionBlocks.Count:N0}");
-                                        _logger.Info("");
-                                        foreach (var extensionBlock in b3x.ExtensionBlocks)
+                                            $"    --------- Block {extensionNumber32:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        if (extensionBlock is Beef0004)
                                         {
-                                            _logger.Info(
-                                                $"    --------- Block {extensionNumber:N0} ({extensionBlock.GetType().Name}) ---------");
-                                            if (extensionBlock is Beef0004)
-                                            {
-                                                var b4 = extensionBlock as Beef0004;
+                                            var b4 = extensionBlock as Beef0004;
 
-                                                _logger.Info($"    Long name: {b4.LongName}");
-                                                if (b4.LocalisedName.Length > 0)
-                                                {
-                                                    _logger.Info($"    Localized name: {b4.LocalisedName}");
-                                                }
+                                            _logger.Info($"    Long name: {b4.LongName}");
+                                            if (b4.LocalisedName.Length > 0)
+                                            {
+                                                _logger.Info($"    Localized name: {b4.LocalisedName}");
+                                            }
 
-                                                if (b4.CreatedOnTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Created:");
-                                                }
-
-                                                if (b4.LastAccessTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Last access: ");
-                                                }
-                                                
-                                                if (b4.MFTInformation.MFTEntryNumber > 0)
-                                                {
-                                                    _logger.Info(
-                                                        $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
-                                                }
-                                            }
-                                            else if (extensionBlock is Beef0025)
+                                            if (b4.CreatedOnTime.HasValue)
                                             {
-                                                var b25 = extensionBlock as Beef0025;
-                                                _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
-                                            }
-                                            else if (extensionBlock is Beef0003)
-                                            {
-                                                var b3 = extensionBlock as Beef0003;
-                                                _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
-                                            }
-                                            else if (extensionBlock is Beef001a)
-                                            {
-                                                var b3 = extensionBlock as Beef001a;
-                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
                                             }
                                             else
                                             {
-                                                _logger.Info($"    {extensionBlock}");
+                                                _logger.Info($"    Created:");
                                             }
 
-                                            extensionNumber += 1;
-                                        }
-                                    }
-                                    break;
-
-                                case "SHELLBAG0X00":
-                                    var b00 = shellBag as ShellBag0X00;
-
-                                    if (b00.PropertyStore.Sheets.Count > 0)
-                                    {
-                                        _logger.Warn("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                                        var propCount = 0;
-
-                                        foreach (var prop in b00.PropertyStore.Sheets)
-                                        {
-                                            foreach (var propertyName in prop.PropertyNames)
+                                            if (b4.LastAccessTime.HasValue)
                                             {
-                                                propCount += 1;
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
+                                            }
+                                            else
+                                            {
+                                                _logger.Info($"    Last access: ");
+                                            }
+                                                
+                                            if (b4.MFTInformation.MFTEntryNumber > 0)
+                                            {
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
+                                            }
+                                        }
+                                        else if (extensionBlock is Beef0025)
+                                        {
+                                            var b25 = extensionBlock as Beef0025;
+                                            _logger.Info(
+                                                $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
+                                        }
+                                        else if (extensionBlock is Beef0003)
+                                        {
+                                            var b3 = extensionBlock as Beef0003;
+                                            _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
+                                        }
+                                        else if (extensionBlock is Beef001a)
+                                        {
+                                            var b3 = extensionBlock as Beef001a;
+                                            _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
+                                        }
 
-                                                var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+                                        else
+                                        {
+                                            _logger.Info($"    {extensionBlock}");
+                                        }
 
-                                                var suffix = string.Empty;
+                                        extensionNumber32 += 1;
+                                    }
+                                }
 
-                                                if (intParsed)
-                                                {
-                                                    suffix =
-                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                            .PadRight(35);
-                                                }
+                                break;
+                            case "SHELLBAG0X31":
+
+                                var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
+
+                                _logger.Info($"    Short name: {b3x.ShortName}");
+                                if (b3x.LastModificationTime.HasValue)
+                                {
+                                    _logger.Info(
+                                        $"    Modified: {b3x.LastModificationTime.Value.ToString(datetimeFormat)}");
+                                }
+                                else
+                                {
+                                    _logger.Info($"    Modified:");
+                                }
+
+                                var extensionNumber = 0;
+                                if (b3x.ExtensionBlocks.Count > 0)
+                                {
+                                    _logger.Info($"    Extension block count: {b3x.ExtensionBlocks.Count:N0}");
+                                    _logger.Info("");
+                                    foreach (var extensionBlock in b3x.ExtensionBlocks)
+                                    {
+                                        _logger.Info(
+                                            $"    --------- Block {extensionNumber:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        if (extensionBlock is Beef0004)
+                                        {
+                                            var b4 = extensionBlock as Beef0004;
+
+                                            _logger.Info($"    Long name: {b4.LongName}");
+                                            if (b4.LocalisedName.Length > 0)
+                                            {
+                                                _logger.Info($"    Localized name: {b4.LocalisedName}");
+                                            }
+
+                                            if (b4.CreatedOnTime.HasValue)
+                                            {
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
+                                            }
+                                            else
+                                            {
+                                                _logger.Info($"    Created:");
+                                            }
+
+                                            if (b4.LastAccessTime.HasValue)
+                                            {
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
+                                            }
+                                            else
+                                            {
+                                                _logger.Info($"    Last access: ");
+                                            }
+                                                
+                                            if (b4.MFTInformation.MFTEntryNumber > 0)
+                                            {
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
+                                            }
+                                        }
+                                        else if (extensionBlock is Beef0025)
+                                        {
+                                            var b25 = extensionBlock as Beef0025;
+                                            _logger.Info(
+                                                $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
+                                        }
+                                        else if (extensionBlock is Beef0003)
+                                        {
+                                            var b3 = extensionBlock as Beef0003;
+                                            _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
+                                        }
+                                        else if (extensionBlock is Beef001a)
+                                        {
+                                            var b3 = extensionBlock as Beef001a;
+                                            _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
+                                        }
+                                        else
+                                        {
+                                            _logger.Info($"    {extensionBlock}");
+                                        }
+
+                                        extensionNumber += 1;
+                                    }
+                                }
+                                break;
+
+                            case "SHELLBAG0X00":
+                                var b00 = shellBag as ShellBag0X00;
+
+                                if (b00.PropertyStore.Sheets.Count > 0)
+                                {
+                                    _logger.Warn("  >> Property store (Format: GUID\\ID Description ==> Value)");
+                                    var propCount = 0;
+
+                                    foreach (var prop in b00.PropertyStore.Sheets)
+                                    {
+                                        foreach (var propertyName in prop.PropertyNames)
+                                        {
+                                            propCount += 1;
+
+                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                            var suffix = string.Empty;
+
+                                            if (intParsed)
+                                            {
+                                                suffix =
+                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                        .PadRight(35);
+                                            }
 
 //                                                var suffix =
 //                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
 //                                                        .PadRight(35);
 
-                                                _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
-                                            }
-                                        }
-
-                                        if (propCount == 0)
-                                        {
-                                            _logger.Warn("     (Property store is empty)");
+                                            _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                         }
                                     }
 
-                                    break;
-                                case "SHELLBAG0X01":
-                                    var baaaa1f = shellBag as ShellBag0X01;
-                                    if (baaaa1f.DriveLetter.Length > 0)
+                                    if (propCount == 0)
                                     {
-                                        _logger.Info($"  Drive letter: {baaaa1f.DriveLetter}");
+                                        _logger.Warn("     (Property store is empty)");
                                     }
-                                    break;
-                                case "SHELLBAG0X1F":
+                                }
 
-                                    var b1f = shellBag as ShellBag0X1F;
+                                break;
+                            case "SHELLBAG0X01":
+                                var baaaa1f = shellBag as ShellBag0X01;
+                                if (baaaa1f.DriveLetter.Length > 0)
+                                {
+                                    _logger.Info($"  Drive letter: {baaaa1f.DriveLetter}");
+                                }
+                                break;
+                            case "SHELLBAG0X1F":
 
-                                    if (b1f.PropertyStore.Sheets.Count > 0)
+                                var b1f = shellBag as ShellBag0X1F;
+
+                                if (b1f.PropertyStore.Sheets.Count > 0)
+                                {
+                                    _logger.Warn("  >> Property store (Format: GUID\\ID Description ==> Value)");
+                                    var propCount = 0;
+
+                                    foreach (var prop in b1f.PropertyStore.Sheets)
                                     {
-                                        _logger.Warn("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                                        var propCount = 0;
-
-                                        foreach (var prop in b1f.PropertyStore.Sheets)
+                                        foreach (var propertyName in prop.PropertyNames)
                                         {
-                                            foreach (var propertyName in prop.PropertyNames)
+                                            propCount += 1;
+
+                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                            var suffix = string.Empty;
+
+                                            if (intParsed)
                                             {
-                                                propCount += 1;
-
-                                                var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                                var suffix = string.Empty;
-
-                                                if (intParsed)
-                                                {
-                                                    suffix =
-                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                            .PadRight(35);
-                                                }
+                                                suffix =
+                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                        .PadRight(35);
+                                            }
                                                 
-                                                _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
-                                            }
-                                        }
-
-                                        if (propCount == 0)
-                                        {
-                                            _logger.Warn("     (Property store is empty)");
+                                            _logger.Info($"     {prefix} {suffix} ==> {propertyName.Value}");
                                         }
                                     }
 
-                                    break;
-                                case "SHELLBAG0X2E":
-                                    break;
-                                case "SHELLBAG0X2F":
-                                    var b2f = shellBag as ShellBag0X2F;
-
-                                    break;
-                                case "SHELLBAG0X40":
-                                    break;
-                                case "SHELLBAG0X61":
-
-                                    break;
-                                case "SHELLBAG0X71":
-                                    var b71 = shellBag as ShellBag0X71;
-                                    if (b71.PropertyStore?.Sheets.Count > 0)
+                                    if (propCount == 0)
                                     {
-                                        _logger.Fatal(
-                                            "Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
+                                        _logger.Warn("     (Property store is empty)");
                                     }
+                                }
 
-                                    break;
-                                case "SHELLBAG0X74":
-                                    var b74 = shellBag as ShellBag0X74;
+                                break;
+                            case "SHELLBAG0X2E":
+                                break;
+                            case "SHELLBAG0X2F":
+                                var b2f = shellBag as ShellBag0X2F;
 
-                                    if (b74.LastModificationTime.HasValue)
-                                    {
-                                        _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(datetimeFormat)}");
-                                    }
-                                    else
-                                    {
-                                        _logger.Info($"    Modified:");
-                                    }
+                                break;
+                            case "SHELLBAG0X40":
+                                break;
+                            case "SHELLBAG0X61":
 
-                                    var extensionNumber74 = 0;
-                                    if (b74.ExtensionBlocks.Count > 0)
-                                    {
-                                        _logger.Info($"    Extension block count: {b74.ExtensionBlocks.Count:N0}");
-                                        _logger.Info("");
-                                        foreach (var extensionBlock in b74.ExtensionBlocks)
-                                        {
-                                            _logger.Info(
-                                                $"    --------- Block {extensionNumber74:N0} ({extensionBlock.GetType().Name}) ---------");
-                                            if (extensionBlock is Beef0004)
-                                            {
-                                                var b4 = extensionBlock as Beef0004;
-
-                                                _logger.Info($"    Long name: {b4.LongName}");
-                                                if (b4.LocalisedName.Length > 0)
-                                                {
-                                                    _logger.Info($"    Localized name: {b4.LocalisedName}");
-                                                }
-
-                                                if (b4.CreatedOnTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Created:");
-                                                }
-
-                                                if (b4.LastAccessTime.HasValue)
-                                                {
-                                                    _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
-                                                }
-                                                else
-                                                {
-                                                    _logger.Info($"    Last access: ");
-                                                }
-                                                if (b4.MFTInformation.MFTEntryNumber > 0)
-                                                {
-                                                    _logger.Info(
-                                                        $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
-                                                }
-                                            }
-                                            else if (extensionBlock is Beef0025)
-                                            {
-                                                var b25 = extensionBlock as Beef0025;
-                                                _logger.Info(
-                                                    $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
-                                            }
-                                            else if (extensionBlock is Beef0003)
-                                            {
-                                                var b3 = extensionBlock as Beef0003;
-                                                _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
-                                            }
-                                            else if (extensionBlock is Beef001a)
-                                            {
-                                                var b3 = extensionBlock as Beef001a;
-                                                _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
-                                            }
-                                            else
-                                            {
-                                                _logger.Info($"    {extensionBlock}");
-                                            }
-
-                                            extensionNumber74 += 1;
-                                        }
-                                    }
-                                    break;
-                                case "SHELLBAG0X23":
-                                case "SHELLBAG0XC3":
-                                    break;
-                                case "SHELLBAGZIPCONTENTS":
-                                    break;
-                                default:
+                                break;
+                            case "SHELLBAG0X71":
+                                var b71 = shellBag as ShellBag0X71;
+                                if (b71.PropertyStore?.Sheets.Count > 0)
+                                {
                                     _logger.Fatal(
-                                        $">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
-                                    _logger.Fatal($">>{shellBag}");
-                                    break;
-                            }
+                                        "Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
+                                }
 
-                            _logger.Info("");
-                        }
-                        _logger.Error("--- End Target ID information ---");
-                    }
+                                break;
+                            case "SHELLBAG0X74":
+                                var b74 = shellBag as ShellBag0X74;
 
-                    if (neb)
-                    {
-                        _logger.Info("");
-                        _logger.Warn(
-                            $"(Extra blocks information suppressed. Lnk Extra block count: {lnk.ExtraBlocks.Count:N0})");
-                    }
+                                if (b74.LastModificationTime.HasValue)
+                                {
+                                    _logger.Info($"    Modified: {b74.LastModificationTime.Value.ToString(datetimeFormat)}");
+                                }
+                                else
+                                {
+                                    _logger.Info($"    Modified:");
+                                }
 
-                    if (lnk.ExtraBlocks.Count > 0 && !neb)
-                    {
-                        _logger.Info("");
-                        _logger.Error("--- Extra blocks information ---");
-                        _logger.Info("");
-
-                        foreach (var extraDataBase in lnk.ExtraBlocks)
-                        {
-                            switch (extraDataBase.GetType().Name)
-                            {
-                                case "ConsoleDataBlock":
-                                    var cdb = extraDataBase as ConsoleDataBlock;
-                                    _logger.Warn(">> Console data block");
-                                    _logger.Info($"   Fill Attributes: {cdb.FillAttributes}");
-                                    _logger.Info($"   Popup Attributes: {cdb.PopupFillAttributes}");
-                                    _logger.Info(
-                                        $"   Buffer Size (Width x Height): {cdb.ScreenWidthBufferSize} x {cdb.ScreenHeightBufferSize}");
-                                    _logger.Info(
-                                        $"   Window Size (Width x Height): {cdb.WindowWidth} x {cdb.WindowHeight}");
-                                    _logger.Info($"   Origin (X/Y): {cdb.WindowOriginX}/{cdb.WindowOriginY}");
-                                    _logger.Info($"   Font Size: {cdb.FontSize}");
-                                    _logger.Info($"   Is Bold: {cdb.IsBold}");
-                                    _logger.Info($"   Face Name: {cdb.FaceName}");
-                                    _logger.Info($"   Cursor Size: {cdb.CursorSize}");
-                                    _logger.Info($"   Is Full Screen: {cdb.IsFullScreen}");
-                                    _logger.Info($"   Is Quick Edit: {cdb.IsQuickEdit}");
-                                    _logger.Info($"   Is Insert Mode: {cdb.IsInsertMode}");
-                                    _logger.Info($"   Is Auto Positioned: {cdb.IsAutoPositioned}");
-                                    _logger.Info($"   History Buffer Size: {cdb.HistoryBufferSize}");
-                                    _logger.Info($"   History Buffer Count: {cdb.HistoryBufferCount}");
-                                    _logger.Info($"   History Duplicates Allowed: {cdb.HistoryDuplicatesAllowed}");
+                                var extensionNumber74 = 0;
+                                if (b74.ExtensionBlocks.Count > 0)
+                                {
+                                    _logger.Info($"    Extension block count: {b74.ExtensionBlocks.Count:N0}");
                                     _logger.Info("");
-                                    break;
-                                case "ConsoleFEDataBlock":
-                                    var cfedb = extraDataBase as ConsoleFeDataBlock;
-                                    _logger.Warn(">> Console FE data block");
-                                    _logger.Info($"   Code page: {cfedb.CodePage}");
-                                    _logger.Info("");
-                                    break;
-                                case "DarwinDataBlock":
-                                    var ddb = extraDataBase as DarwinDataBlock;
-                                    _logger.Warn(">> Darwin data block");
-                                    _logger.Info($"   Application ID: {ddb.ApplicationIdentifierUnicode}");
-                                    _logger.Info($"   Product code: {ddb.ProductCode}");
-                                    _logger.Info($"   Feature name: {ddb.FeatureName}");
-                                    _logger.Info($"   Component ID: {ddb.ComponentId}");
-                                    _logger.Info("");
-                                    break;
-                                case "EnvironmentVariableDataBlock":
-                                    var evdb = extraDataBase as EnvironmentVariableDataBlock;
-                                    _logger.Warn(">> Environment variable data block");
-                                    _logger.Info($"   Environment variables: {evdb.EnvironmentVariablesUnicode}");
-                                    _logger.Info("");
-                                    break;
-                                case "IconEnvironmentDataBlock":
-                                    var iedb = extraDataBase as IconEnvironmentDataBlock;
-                                    _logger.Warn(">> Icon environment data block");
-                                    _logger.Info($"   Icon path: {iedb.IconPathUni}");
-                                    _logger.Info("");
-                                    break;
-                                case "KnownFolderDataBlock":
-                                    var kfdb = extraDataBase as KnownFolderDataBlock;
-                                    _logger.Warn(">> Known folder data block");
-                                    _logger.Info(
-                                        $"   Known folder GUID: {kfdb.KnownFolderId} ==> {kfdb.KnownFolderName}");
-                                    _logger.Info("");
-                                    break;
-                                case "PropertyStoreDataBlock":
-                                    var psdb = extraDataBase as PropertyStoreDataBlock;
-
-                                    if (psdb.PropertyStore.Sheets.Count > 0)
+                                    foreach (var extensionBlock in b74.ExtensionBlocks)
                                     {
-                                        _logger.Warn(
-                                            ">> Property store data block (Format: GUID\\ID Description ==> Value)");
-                                        var propCount = 0;
-
-                                        foreach (var prop in psdb.PropertyStore.Sheets)
+                                        _logger.Info(
+                                            $"    --------- Block {extensionNumber74:N0} ({extensionBlock.GetType().Name}) ---------");
+                                        if (extensionBlock is Beef0004)
                                         {
-                                            foreach (var propertyName in prop.PropertyNames)
+                                            var b4 = extensionBlock as Beef0004;
+
+                                            _logger.Info($"    Long name: {b4.LongName}");
+                                            if (b4.LocalisedName.Length > 0)
                                             {
-                                                propCount += 1;
+                                                _logger.Info($"    Localized name: {b4.LocalisedName}");
+                                            }
 
-                                                var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                                var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+                                            if (b4.CreatedOnTime.HasValue)
+                                            {
+                                                _logger.Info($"    Created: {b4.CreatedOnTime.Value.ToString(datetimeFormat)}");
+                                            }
+                                            else
+                                            {
+                                                _logger.Info($"    Created:");
+                                            }
 
-                                                var suffix = string.Empty;
-
-                                                if (intParsed)
-                                                {
-                                                    suffix =
-                                                        $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                            .PadRight(35);
-                                                }
-
-//                                                var suffix =
-//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-//                                                        .PadRight(35);
-
-                                                _logger.Info($"   {prefix} {suffix} ==> {propertyName.Value}");
+                                            if (b4.LastAccessTime.HasValue)
+                                            {
+                                                _logger.Info($"    Last access: {b4.LastAccessTime.Value.ToString(datetimeFormat)}");
+                                            }
+                                            else
+                                            {
+                                                _logger.Info($"    Last access: ");
+                                            }
+                                            if (b4.MFTInformation.MFTEntryNumber > 0)
+                                            {
+                                                _logger.Info(
+                                                    $"    MFT entry/sequence #: {b4.MFTInformation.MFTEntryNumber}/{b4.MFTInformation.MFTSequenceNumber} (0x{b4.MFTInformation.MFTEntryNumber:X}/0x{b4.MFTInformation.MFTSequenceNumber:X})");
                                             }
                                         }
-
-                                        if (propCount == 0)
+                                        else if (extensionBlock is Beef0025)
                                         {
-                                            _logger.Warn("   (Property store is empty)");
+                                            var b25 = extensionBlock as Beef0025;
+                                            _logger.Info(
+                                                $"    Filetime 1: {b25.FileTime1.Value.ToString(datetimeFormat)}, Filetime 2: {b25.FileTime2.Value.ToString(datetimeFormat)}");
                                         }
-                                    }
-                                    _logger.Info("");
-                                    break;
-                                case "ShimDataBlock":
-                                    var sdb = extraDataBase as ShimDataBlock;
-                                    _logger.Warn(">> Shimcache data block");
-                                    _logger.Info($"   Layer name: {sdb.LayerName}");
-                                    _logger.Info("");
-                                    break;
-                                case "SpecialFolderDataBlock":
-                                    var sfdb = extraDataBase as SpecialFolderDataBlock;
-                                    _logger.Warn(">> Special folder data block");
-                                    _logger.Info($"   Special Folder ID: {sfdb.SpecialFolderId}");
-                                    _logger.Info("");
-                                    break;
-                                case "TrackerDataBaseBlock":
-                                    var tdb = extraDataBase as TrackerDataBaseBlock;
-                                    _logger.Warn(">> Tracker database block");
-                                    _logger.Info($"   Machine ID: {tdb.MachineId}");
-                                    _logger.Info($"   MAC Address: {tdb.MacAddress}");
-                                    _logger.Info($"   MAC Vendor: {GetVendorFromMac(tdb.MacAddress)}");
-                                    _logger.Info($"   Creation: {tdb.CreationTime.ToString(datetimeFormat)}");
-                                    _logger.Info("");
-                                    _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
-                                    _logger.Info($"   Volume Droid Birth: {tdb.VolumeDroidBirth}");
-                                    _logger.Info($"   File Droid: {tdb.FileDroid}");
-                                    _logger.Info($"   File Droid birth: {tdb.FileDroidBirth}");
-                                    _logger.Info("");
-                                    break;
-                                case "VistaAndAboveIdListDataBlock":
-                                    var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
-                                    _logger.Warn(">> Vista and above ID List data block");
+                                        else if (extensionBlock is Beef0003)
+                                        {
+                                            var b3 = extensionBlock as Beef0003;
+                                            _logger.Info($"    GUID: {b3.GUID1} ({b3.GUID1Folder})");
+                                        }
+                                        else if (extensionBlock is Beef001a)
+                                        {
+                                            var b3 = extensionBlock as Beef001a;
+                                            _logger.Info($"    File document type: {b3.FileDocumentTypeString}");
+                                        }
+                                        else
+                                        {
+                                            _logger.Info($"    {extensionBlock}");
+                                        }
 
-                                    foreach (var shellBag in vdb.TargetIDs)
-                                    {
-                                        var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-                                        _logger.Info($"   {shellBag.FriendlyName} ==> {val}");
+                                        extensionNumber74 += 1;
                                     }
-
-                                    _logger.Info("");
-                                    break;
-                                case "DamagedDataBlock":
-                                    var dmg = extraDataBase as DamagedDataBlock;
-                                    _logger.Warn("Damaged data block");
-                                    _logger.Info($"   Original Signature: {dmg.OriginalSignature}");
-                                    _logger.Info($"   Error Message: {dmg.ErrorMessage}");
-                                
-                                    break;
-                            }
+                                }
+                                break;
+                            case "SHELLBAG0X23":
+                            case "SHELLBAG0XC3":
+                                break;
+                            case "SHELLBAGZIPCONTENTS":
+                                break;
+                            default:
+                                _logger.Fatal(
+                                    $">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
+                                _logger.Fatal($">>{shellBag}");
+                                break;
                         }
+
+                        _logger.Info("");
                     }
+                    _logger.Error("--- End Target ID information ---");
                 }
 
-                sw.Stop();
-
-                if (quiet == false)
+                if (neb)
                 {
                     _logger.Info("");
+                    _logger.Warn(
+                        $"(Extra blocks information suppressed. Lnk Extra block count: {lnk.ExtraBlocks.Count:N0})");
                 }
 
-                _logger.Info(
-                    $"---------- Processed '{lnk.SourceFile.Replace("\\\\?\\","")}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
-
-                if (quiet == false)
+                if (lnk.ExtraBlocks.Count > 0 && !neb)
                 {
-                    _logger.Info("\r\n");
-                }
+                    _logger.Info("");
+                    _logger.Error("--- Extra blocks information ---");
+                    _logger.Info("");
 
-                return lnk;
+                    foreach (var extraDataBase in lnk.ExtraBlocks)
+                    {
+                        switch (extraDataBase.GetType().Name)
+                        {
+                            case "ConsoleDataBlock":
+                                var cdb = extraDataBase as ConsoleDataBlock;
+                                _logger.Warn(">> Console data block");
+                                _logger.Info($"   Fill Attributes: {cdb.FillAttributes}");
+                                _logger.Info($"   Popup Attributes: {cdb.PopupFillAttributes}");
+                                _logger.Info(
+                                    $"   Buffer Size (Width x Height): {cdb.ScreenWidthBufferSize} x {cdb.ScreenHeightBufferSize}");
+                                _logger.Info(
+                                    $"   Window Size (Width x Height): {cdb.WindowWidth} x {cdb.WindowHeight}");
+                                _logger.Info($"   Origin (X/Y): {cdb.WindowOriginX}/{cdb.WindowOriginY}");
+                                _logger.Info($"   Font Size: {cdb.FontSize}");
+                                _logger.Info($"   Is Bold: {cdb.IsBold}");
+                                _logger.Info($"   Face Name: {cdb.FaceName}");
+                                _logger.Info($"   Cursor Size: {cdb.CursorSize}");
+                                _logger.Info($"   Is Full Screen: {cdb.IsFullScreen}");
+                                _logger.Info($"   Is Quick Edit: {cdb.IsQuickEdit}");
+                                _logger.Info($"   Is Insert Mode: {cdb.IsInsertMode}");
+                                _logger.Info($"   Is Auto Positioned: {cdb.IsAutoPositioned}");
+                                _logger.Info($"   History Buffer Size: {cdb.HistoryBufferSize}");
+                                _logger.Info($"   History Buffer Count: {cdb.HistoryBufferCount}");
+                                _logger.Info($"   History Duplicates Allowed: {cdb.HistoryDuplicatesAllowed}");
+                                _logger.Info("");
+                                break;
+                            case "ConsoleFEDataBlock":
+                                var cfedb = extraDataBase as ConsoleFeDataBlock;
+                                _logger.Warn(">> Console FE data block");
+                                _logger.Info($"   Code page: {cfedb.CodePage}");
+                                _logger.Info("");
+                                break;
+                            case "DarwinDataBlock":
+                                var ddb = extraDataBase as DarwinDataBlock;
+                                _logger.Warn(">> Darwin data block");
+                                _logger.Info($"   Application ID: {ddb.ApplicationIdentifierUnicode}");
+                                _logger.Info($"   Product code: {ddb.ProductCode}");
+                                _logger.Info($"   Feature name: {ddb.FeatureName}");
+                                _logger.Info($"   Component ID: {ddb.ComponentId}");
+                                _logger.Info("");
+                                break;
+                            case "EnvironmentVariableDataBlock":
+                                var evdb = extraDataBase as EnvironmentVariableDataBlock;
+                                _logger.Warn(">> Environment variable data block");
+                                _logger.Info($"   Environment variables: {evdb.EnvironmentVariablesUnicode}");
+                                _logger.Info("");
+                                break;
+                            case "IconEnvironmentDataBlock":
+                                var iedb = extraDataBase as IconEnvironmentDataBlock;
+                                _logger.Warn(">> Icon environment data block");
+                                _logger.Info($"   Icon path: {iedb.IconPathUni}");
+                                _logger.Info("");
+                                break;
+                            case "KnownFolderDataBlock":
+                                var kfdb = extraDataBase as KnownFolderDataBlock;
+                                _logger.Warn(">> Known folder data block");
+                                _logger.Info(
+                                    $"   Known folder GUID: {kfdb.KnownFolderId} ==> {kfdb.KnownFolderName}");
+                                _logger.Info("");
+                                break;
+                            case "PropertyStoreDataBlock":
+                                var psdb = extraDataBase as PropertyStoreDataBlock;
+
+                                if (psdb.PropertyStore.Sheets.Count > 0)
+                                {
+                                    _logger.Warn(
+                                        ">> Property store data block (Format: GUID\\ID Description ==> Value)");
+                                    var propCount = 0;
+
+                                    foreach (var prop in psdb.PropertyStore.Sheets)
+                                    {
+                                        foreach (var propertyName in prop.PropertyNames)
+                                        {
+                                            propCount += 1;
+
+                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                            var suffix = string.Empty;
+
+                                            if (intParsed)
+                                            {
+                                                suffix =
+                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                        .PadRight(35);
+                                            }
+
+//                                                var suffix =
+//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+//                                                        .PadRight(35);
+
+                                            _logger.Info($"   {prefix} {suffix} ==> {propertyName.Value}");
+                                        }
+                                    }
+
+                                    if (propCount == 0)
+                                    {
+                                        _logger.Warn("   (Property store is empty)");
+                                    }
+                                }
+                                _logger.Info("");
+                                break;
+                            case "ShimDataBlock":
+                                var sdb = extraDataBase as ShimDataBlock;
+                                _logger.Warn(">> Shimcache data block");
+                                _logger.Info($"   Layer name: {sdb.LayerName}");
+                                _logger.Info("");
+                                break;
+                            case "SpecialFolderDataBlock":
+                                var sfdb = extraDataBase as SpecialFolderDataBlock;
+                                _logger.Warn(">> Special folder data block");
+                                _logger.Info($"   Special Folder ID: {sfdb.SpecialFolderId}");
+                                _logger.Info("");
+                                break;
+                            case "TrackerDataBaseBlock":
+                                var tdb = extraDataBase as TrackerDataBaseBlock;
+                                _logger.Warn(">> Tracker database block");
+                                _logger.Info($"   Machine ID: {tdb.MachineId}");
+                                _logger.Info($"   MAC Address: {tdb.MacAddress}");
+                                _logger.Info($"   MAC Vendor: {GetVendorFromMac(tdb.MacAddress)}");
+                                _logger.Info($"   Creation: {tdb.CreationTime.ToString(datetimeFormat)}");
+                                _logger.Info("");
+                                _logger.Info($"   Volume Droid: {tdb.VolumeDroid}");
+                                _logger.Info($"   Volume Droid Birth: {tdb.VolumeDroidBirth}");
+                                _logger.Info($"   File Droid: {tdb.FileDroid}");
+                                _logger.Info($"   File Droid birth: {tdb.FileDroidBirth}");
+                                _logger.Info("");
+                                break;
+                            case "VistaAndAboveIdListDataBlock":
+                                var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
+                                _logger.Warn(">> Vista and above ID List data block");
+
+                                foreach (var shellBag in vdb.TargetIDs)
+                                {
+                                    var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
+                                    _logger.Info($"   {shellBag.FriendlyName} ==> {val}");
+                                }
+
+                                _logger.Info("");
+                                break;
+                            case "DamagedDataBlock":
+                                var dmg = extraDataBase as DamagedDataBlock;
+                                _logger.Warn("Damaged data block");
+                                _logger.Info($"   Original Signature: {dmg.OriginalSignature}");
+                                _logger.Info($"   Error Message: {dmg.ErrorMessage}");
+                                
+                                break;
+                        }
+                    }
+                }
             }
 
-            catch (Exception ex)
+            sw.Stop();
+
+            if (quiet == false)
             {
-                _failedFiles.Add($"{lnkFile.Replace("\\\\?\\","")} ==> ({ex.Message})");
-                _logger.Fatal($"Error opening '{lnkFile}'. Message: {ex.Message}");
                 _logger.Info("");
             }
 
-            return null;
+            _logger.Info(
+                $"---------- Processed '{lnk.SourceFile.Replace("\\\\?\\","")}' in {sw.Elapsed.TotalSeconds:N8} seconds ----------");
 
-            }
-
-
-        private static string GetVendorFromMac(string macAddress)
-        {
-            //00-00-00	XEROX CORPORATION
-            //"00:14:22:0d:94:04"
-
-            var mac = string.Join("", macAddress.Split(':').Take(3)).ToUpperInvariant();
-                // .Replace(":", "-").ToUpper();
-
-            var vendor = "(Unknown vendor)";
-
-            if (MacList.ContainsKey(mac))
+            if (quiet == false)
             {
-                vendor = MacList[mac];
+                _logger.Info("\r\n");
             }
 
-            return vendor;
+            return lnk;
         }
 
-        private static readonly string BaseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        private static void SetupNLog()
+        catch (Exception ex)
         {
-            if (File.Exists( Path.Combine(BaseDirectory,"Nlog.config")))
-            {
-                return;
-            }
-            var config = new LoggingConfiguration();
-            var loglevel = LogLevel.Info;
-
-            var layout = @"${message}";
-
-            var consoleTarget = new ColoredConsoleTarget();
-
-            config.AddTarget("console", consoleTarget);
-
-            consoleTarget.Layout = layout;
-
-            var rule1 = new LoggingRule("*", loglevel, consoleTarget);
-            config.LoggingRules.Add(rule1);
-
-            LogManager.Configuration = config;
+            _failedFiles.Add($"{lnkFile.Replace("\\\\?\\","")} ==> ({ex.Message})");
+            _logger.Fatal($"Error opening '{lnkFile}'. Message: {ex.Message}");
+            _logger.Info("");
         }
+
+        return null;
+
     }
 
-    public sealed class CsvOut
+
+    private static string GetVendorFromMac(string macAddress)
     {
-        public string SourceFile { get; set; }
-        public string SourceCreated { get; set; }
-        public string SourceModified { get; set; }
-        public string SourceAccessed { get; set; }
-        public string TargetCreated { get; set; }
-        public string TargetModified { get; set; }
-        public string  TargetAccessed { get; set; }
-        public uint FileSize { get; set; }
-        public string RelativePath { get; set; }
-        public string WorkingDirectory { get; set; }
-        public string FileAttributes { get; set; }
-        public string HeaderFlags { get; set; }
-        public string DriveType { get; set; }
-        public string VolumeSerialNumber { get; set; }
-        public string VolumeLabel { get; set; }
-        public string LocalPath { get; set; }
-        public string NetworkPath { get; set; }
-        public string CommonPath { get; set; }
-        public string Arguments { get; set; }
-        public string TargetIDAbsolutePath { get; set; }
-        public string TargetMFTEntryNumber { get; set; }
-        public string TargetMFTSequenceNumber { get; set; }
-        public string MachineID { get; set; }
-        public string MachineMACAddress { get; set; }
-        public string MACVendor { get; set; }
-        public string TrackerCreatedOn { get; set; }
-        public string ExtraBlocksPresent { get; set; }
+        //00-00-00	XEROX CORPORATION
+        //"00:14:22:0d:94:04"
+
+        var mac = string.Join("", macAddress.Split(':').Take(3)).ToUpperInvariant();
+        // .Replace(":", "-").ToUpper();
+
+        var vendor = "(Unknown vendor)";
+
+        if (MacList.ContainsKey(mac))
+        {
+            vendor = MacList[mac];
+        }
+
+        return vendor;
+    }
+
+    private static readonly string BaseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+    private static void SetupNLog()
+    {
+        if (File.Exists( Path.Combine(BaseDirectory,"Nlog.config")))
+        {
+            return;
+        }
+        var config = new LoggingConfiguration();
+        var loglevel = LogLevel.Info;
+
+        var layout = @"${message}";
+
+        var consoleTarget = new ColoredConsoleTarget();
+
+        config.AddTarget("console", consoleTarget);
+
+        consoleTarget.Layout = layout;
+
+        var rule1 = new LoggingRule("*", loglevel, consoleTarget);
+        config.LoggingRules.Add(rule1);
+
+        LogManager.Configuration = config;
+    }
+}
+
+public sealed class CsvOut
+{
+    public string SourceFile { get; set; }
+    public string SourceCreated { get; set; }
+    public string SourceModified { get; set; }
+    public string SourceAccessed { get; set; }
+    public string TargetCreated { get; set; }
+    public string TargetModified { get; set; }
+    public string  TargetAccessed { get; set; }
+    public uint FileSize { get; set; }
+    public string RelativePath { get; set; }
+    public string WorkingDirectory { get; set; }
+    public string FileAttributes { get; set; }
+    public string HeaderFlags { get; set; }
+    public string DriveType { get; set; }
+    public string VolumeSerialNumber { get; set; }
+    public string VolumeLabel { get; set; }
+    public string LocalPath { get; set; }
+    public string NetworkPath { get; set; }
+    public string CommonPath { get; set; }
+    public string Arguments { get; set; }
+    public string TargetIDAbsolutePath { get; set; }
+    public string TargetMFTEntryNumber { get; set; }
+    public string TargetMFTSequenceNumber { get; set; }
+    public string MachineID { get; set; }
+    public string MachineMACAddress { get; set; }
+    public string MACVendor { get; set; }
+    public string TrackerCreatedOn { get; set; }
+    public string ExtraBlocksPresent { get; set; }
         
-    }
+}
 
-    internal class ApplicationArguments
-    {
-        public string File { get; set; }
-        public string Directory { get; set; }
+internal class ApplicationArguments
+{
+    public string File { get; set; }
+    public string Directory { get; set; }
 
-        public string JsonDirectory { get; set; }
-        public bool JsonPretty { get; set; }
-        public bool AllFiles { get; set; }
-        public bool NoTargetIDList { get; set; }
-        public bool NoExtraBlocks { get; set; }
-        public string CsvDirectory { get; set; }
-        public string CsvName { get; set; }
-        public string XmlDirectory { get; set; }
-        public string xHtmlDirectory { get; set; }
+    public string JsonDirectory { get; set; }
+    public bool JsonPretty { get; set; }
+    public bool AllFiles { get; set; }
+    public bool NoTargetIDList { get; set; }
+    public bool NoExtraBlocks { get; set; }
+    public string CsvDirectory { get; set; }
+    public string CsvName { get; set; }
+    public string XmlDirectory { get; set; }
+    public string xHtmlDirectory { get; set; }
 
-        public string DateTimeFormat { get; set; }
+    public string DateTimeFormat { get; set; }
 
-        public bool PreciseTimestamps { get; set; }
+    public bool PreciseTimestamps { get; set; }
 
-        public bool RemovableOnly { get; set; }
+    public bool RemovableOnly { get; set; }
 
-        public bool Quiet { get; set; }
+    public bool Quiet { get; set; }
 
 
-    }
 }

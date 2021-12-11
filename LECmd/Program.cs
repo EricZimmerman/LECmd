@@ -42,6 +42,18 @@ internal class Program
 
     private static string _preciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
 
+    public static string header = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
+                                  "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
+                                  "\r\nhttps://github.com/EricZimmerman/LECmd";
+    
+    private static string footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
+                                   @"   LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
+                                   @"   LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
+                                   @"   LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
+                                   @"   LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t" + 
+                                   "\r\n\t"+
+                                   "    Short options (single letter) are prefixed with a single dash. Long commands are prefixed with two dashes\r\n";
+
     private static List<string> _failedFiles;
 
     private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
@@ -91,9 +103,6 @@ internal class Program
         SetupNLog();
             
         _logger = LogManager.GetCurrentClassLogger();
-
-         
-            
             
         var rootCommand = new RootCommand
         {
@@ -169,28 +178,12 @@ internal class Program
 
             
 
-        rootCommand.Description = $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
-                                  "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
-                                  "\r\nhttps://github.com/EricZimmerman/LECmd";
+        rootCommand.Description = header + "\r\n\r\n" + footer;
+
+
 
             
-            
-        var header =
-            $"LECmd version {Assembly.GetExecutingAssembly().GetName().Version}" +
-            "\r\n\r\nAuthor: Eric Zimmerman (saericzimmerman@gmail.com)" +
-            "\r\nhttps://github.com/EricZimmerman/LECmd";
-                
-
-        var footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
-                     @" LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" + "\r\n\t " +
-                     @" LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" + "\r\n\t " +
-                     @" LECmd.exe -f ""C:\Temp\some other link.lnk"" --nid --neb " + "\r\n\t " +
-                     @" LECmd.exe -d ""C:\Temp"" --all" + "\r\n\t" + 
-                     "\r\n\t"+
-                     "  Short options (single letter) are prefixed with a single dash. Long commands are prefixed with two dashes\r\n";
-
-            
-          
+        //TODO convert this to call a function with parameters vs all the code in here
         //<string, string, bool, bool,bool,string, string, string, string, string, bool, bool, bool, string, bool>
         rootCommand.Handler = CommandHandler.Create(
             (string f, string d, bool r, bool q, bool all, string  csv, string  csvf, string xml, string html,string json, bool pretty,bool nid, bool neb,string dt,bool mp) =>
@@ -204,13 +197,12 @@ internal class Program
 
                     helpBld.Write(hc);
                     
-                    Console.WriteLine(footer);
+                  //  Console.WriteLine(footer);
                     
                     _logger.Warn("Either -f or -d is required. Exiting\r\n");
                     return;
                 }
-
-               
+             
                 
                 if (f.IsNullOrEmpty() == false && !File.Exists(f))
                 {
@@ -219,7 +211,7 @@ internal class Program
 
                     helpBld.Write(hc);
                     
-                    Console.WriteLine(footer);
+                   // Console.WriteLine(footer);
                     
                     _logger.Warn($"File '{f}' not found. Exiting\r\n");
                     return;
@@ -233,7 +225,7 @@ internal class Program
 
                     helpBld.Write(hc);
                     
-                    Console.WriteLine(footer);
+                  //  Console.WriteLine(footer);
                     
                     _logger.Warn($"Directory '{d}' not found. Exiting\r\n");
                     return;

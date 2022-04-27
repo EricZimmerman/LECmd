@@ -29,7 +29,7 @@
             mp              Display higher precision for time stamps. Default is FALSE
     
     Examples: LECmd.exe -f "C:\Temp\foobar.lnk"
-              LECmd.exe -f "C:\Temp\somelink.lnk" --json "D:\jsonOutput" --jsonpretty
+              LECmd.exe -f "C:\Temp\somelink.lnk" --json "D:\jsonOutput" --pretty
               LECmd.exe -d "C:\Temp" --csv "c:\temp" --html c:\temp --xml c:\temp\xml -q
               LECmd.exe -f "C:\Temp\some other link.lnk" --nid --neb
               LECmd.exe -d "C:\Temp" --all

@@ -56,7 +56,7 @@ internal class Program
                                             "\r\nhttps://github.com/EricZimmerman/LECmd";
 
     private static readonly string Footer = @"Examples: LECmd.exe -f ""C:\Temp\foobar.lnk""" + "\r\n\t " +
-                                            @"   LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --jsonpretty" +
+                                            @"   LECmd.exe -f ""C:\Temp\somelink.lnk"" --json ""D:\jsonOutput"" --pretty" +
                                             "\r\n\t " +
                                             @"   LECmd.exe -d ""C:\Temp"" --csv ""c:\temp"" --html c:\temp --xml c:\temp\xml -q" +
                                             "\r\n\t " +

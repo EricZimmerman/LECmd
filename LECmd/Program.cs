@@ -321,7 +321,7 @@ internal class Program
 
         _failedFiles = new List<string>();
 
-        var tsNow = DateTimeOffset.Now;
+        var tsNow = DateTimeOffset.UtcNow;
 
         if (f?.Length > 0)
         {

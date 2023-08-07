@@ -914,7 +914,7 @@ internal class Program
                 Log.Information("  Target modified: {Tm}",tm);
                 Log.Information("  Target accessed: {Ta}",ta);
                 Console.WriteLine();
-                Log.Information("  File size: {FileSize:N0}",lnk.Header.FileSize);
+                Log.Information("  File size (bytes): {FileSize:N0}",lnk.Header.FileSize);
                 Log.Information("  Flags: {DataFlags}",lnk.Header.DataFlags);
                 Log.Information("  File attributes: {FileAttributes}",lnk.Header.FileAttributes);
 

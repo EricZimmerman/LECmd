@@ -110,6 +110,9 @@ internal class Program
     {
         ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
 
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        Encoding default_codepage = Encoding.GetEncoding(0);
+
         LoadMacs();
 
         _rootCommand = new RootCommand
@@ -191,7 +194,7 @@ internal class Program
                 "Show trace information during processing"),
             new Option<int>(
                 "--cp",
-                () => 1252,
+                () => default_codepage.CodePage,
                 "Code page to parse strings")
         };
 
@@ -312,6 +315,8 @@ internal class Program
         Log.Information("{Header}",Header);
         Console.WriteLine();
         Log.Information("Command line: {Args}",string.Join(" ", Environment.GetCommandLineArgs().Skip(1)));
+        Console.WriteLine();
+        Log.Information("Code page used to parse: {codepage}", cp);
         Console.WriteLine();
 
         if (IsAdministrator() == false)

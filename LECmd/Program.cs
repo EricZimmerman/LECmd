@@ -188,7 +188,11 @@ internal class Program
             new Option<bool>(
                 "--trace",
                 () => false,
-                "Show trace information during processing")
+                "Show trace information during processing"),
+            new Option<int>(
+                "--cp",
+                () => 1252,
+                "Code page to parse strings")
         };
 
         _rootCommand.Description = Header + "\r\n\r\n" + Footer;
@@ -233,7 +237,7 @@ internal class Program
     }
 
     private static void DoWork(string f, string d, bool r, bool q, bool all, string csv, string csvf, string xml,
-        string html, string json, bool pretty, bool nid, bool neb, string dt, bool mp, bool debug, bool trace)
+        string html, string json, bool pretty, bool nid, bool neb, string dt, bool mp, bool debug, bool trace, int cp)
     {
         _activeDateTimeFormat = dt;
         if (mp)
@@ -331,7 +335,7 @@ internal class Program
             {
                 f = Path.GetFullPath(f);
 
-                lnk = ProcessFile(f, q, r, dt, nid, neb);
+                lnk = ProcessFile(f, q, r, dt, nid, neb, cp);
                 if (lnk != null)
                 {
                     _processedFiles.Add(lnk);
@@ -457,7 +461,7 @@ internal class Program
 
             foreach (var file in lnkFiles)
             {
-                var lnk = ProcessFile(file, q, r, dt, nid, neb);
+                var lnk = ProcessFile(file, q, r, dt, nid, neb, cp);
                 if (lnk != null)
                 {
                     _processedFiles.Add(lnk);
@@ -870,7 +874,7 @@ internal class Program
     }
 
     private static LnkFile ProcessFile(string lnkFile, bool quiet, bool removableOnly, string datetimeFormat, bool nid,
-        bool neb)
+        bool neb, int codepage=1252)
     {
         if (quiet == false)
         {
@@ -883,7 +887,7 @@ internal class Program
 
         try
         {
-            var lnk = Lnk.Lnk.LoadFile(lnkFile);
+            var lnk = Lnk.Lnk.LoadFile(lnkFile, codepage);
 
             if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
             {

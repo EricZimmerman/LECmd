@@ -861,7 +861,7 @@ internal class Program
 
         foreach (var shellBag in ids)
         {
-            absPath += shellBag.Value + @"\";
+            absPath += shellBag.Value.Trim('\\') + @"\";
         }
 
         absPath = absPath.Substring(0, absPath.Length - 1);

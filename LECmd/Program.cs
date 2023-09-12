@@ -35,7 +35,6 @@ using Serilog.Core;
 using Serilog.Events;
 using ServiceStack;
 using ServiceStack.Text;
-using Spectre.Console;
 using CsvWriter = CsvHelper.CsvWriter;
 using Resources = LECmd.Properties.Resources;
 using ShellBag = Lnk.ShellItems.ShellBag;
@@ -1028,7 +1027,7 @@ internal class Program
 
                         var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
 
-                        Log.Information("  -{FriendlyName} ==> {val}", shellBag.FriendlyName, val);
+                        Log.Information("  -{FriendlyName} ==> {Value}", shellBag.FriendlyName, val);
 
                         switch (shellBag.GetType().Name.ToUpper())
                         {
@@ -1614,9 +1613,9 @@ internal class Program
 
         var vendor = "(Unknown vendor)";
 
-        if (MacList.ContainsKey(mac))
+        if (MacList.TryGetValue(mac, out var value))
         {
-            vendor = MacList[mac];
+            vendor = value;
         }
 
         return vendor;

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "LECmd": {
+      "commandName": "Project",
+      "commandLineArgs": "-d 'c:\\temp\\e' --csv 'c:\\temp'"
+    }
+  }
+}

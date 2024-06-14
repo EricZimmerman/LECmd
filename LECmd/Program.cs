@@ -717,6 +717,8 @@ internal class Program
     {
         string netPath = String.Empty;
 
+        Log.Debug("Processing {f}",lnk.SourceFile);
+
         if (lnk.NetworkShareInfo != null)
         {
             netPath = lnk.NetworkShareInfo.NetworkShareName;
@@ -862,9 +864,14 @@ internal class Program
     {
         var absPath = string.Empty;
 
+        if (ids == null)
+        {
+            return absPath;
+        }
+
         foreach (var shellBag in ids)
         {
-            absPath += shellBag.Value.Trim('\\') + @"\";
+            absPath += shellBag.Value?.Trim('\\') + @"\";
         }
 
         absPath = absPath.Substring(0, absPath.Length - 1);

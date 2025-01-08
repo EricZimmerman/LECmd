@@ -372,7 +372,7 @@ internal class Program
 
                 IEnumerable<string> files2;
 
-#if NET6_0
+#if NET6_0 || NET9_0
                         var enumerationOptions = new EnumerationOptions
                         {
                             IgnoreInaccessible = true,

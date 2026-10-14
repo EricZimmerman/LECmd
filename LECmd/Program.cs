@@ -7,9 +7,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+#if NET9_0_OR_GREATER
+using System.IO.Enumeration;
+#endif
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
@@ -105,7 +109,7 @@ internal class Program
         return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 
-    private static async Task Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
         ExceptionlessClient.Default.Startup("FNWfyFuaUAPnVfofTZAhZOgeDG5lv7AnjYKNtsEJ");
 
@@ -258,9 +262,12 @@ internal class Program
             result.GetValue(xmlOpt),result.GetValue(htmlOpt),result.GetValue(jsonOpt),result.GetValue(prettyOpt),result.GetValue(nidOpt),result.GetValue(nebOpt),result.GetValue(dtOpt),result.GetValue(mpOpt),result.GetValue(debugOpt),result.GetValue(traceOpt),result.GetValue(cpOpt)));
 
 
-        var foo = _rootCommand.Parse(args).InvokeAsync();
+        // Exit code: 0 = success, 1 = bad arguments, a fatal error, or one or more files that could not be parsed.
+        var exitCode = await _rootCommand.Parse(args).InvokeAsync();
 
         Log.CloseAndFlush();
+
+        return exitCode;
     }
 
     class DateTimeOffsetFormatter : IFormatProvider, ICustomFormatter
@@ -295,7 +302,7 @@ internal class Program
         }
     }
 
-    private static void DoWork(string f, string d, bool r, bool q, bool all, string csv, string csvf, string xml,
+    private static int DoWork(string f, string d, bool r, bool q, bool all, string csv, string csvf, string xml,
         string html, string json, bool pretty, bool nid, bool neb, string dt, bool mp, bool debug, bool trace, int cp)
     {
         _activeDateTimeFormat = dt;
@@ -335,7 +342,7 @@ internal class Program
             aaa.Invoke(_rootCommand.Parse("Either -f or -d is required. Exiting"));
 
             Console.WriteLine();
-            return;
+            return 1;
         }
 
         if (f.IsNullOrEmpty() == false && !File.Exists(f))
@@ -344,7 +351,7 @@ internal class Program
             aaa.Invoke(_rootCommand.Parse($"File {f} not found. Exiting"));
 
             Console.WriteLine();
-            return;
+            return 1;
         }
 
         if (d.IsNullOrEmpty() == false &&
@@ -352,9 +359,9 @@ internal class Program
         {
             var aaa = new CustomHelpAction(new HelpAction());
             aaa.Invoke(_rootCommand.Parse($"Directory {d} not found. Exiting"));
-        
+
             Console.WriteLine();
-            return;
+            return 1;
         }
 
 
@@ -394,13 +401,13 @@ internal class Program
             {
                 Log.Error(ua,
                     "Unable to access {F}. Are you running as an administrator? Error: {Message}",f,ua.Message);
-                return;
+                return 1;
             }
             catch (Exception ex)
             {
                 Log.Error(ex,
                     "Error processing file {F} Please send it to saericzimmerman@gmail.com. Error: {Message}",f,ex.Message);
-                return;
+                return 1;
             }
         }
         else
@@ -423,16 +430,26 @@ internal class Program
                 IEnumerable<string> files2;
 
 #if NET9_0_OR_GREATER
-                        var enumerationOptions = new EnumerationOptions
-                        {
-                            IgnoreInaccessible = true,
-                            MatchCasing = MatchCasing.CaseInsensitive,
-                            RecurseSubdirectories = true,
-                            AttributesToSkip = 0
-                        };
-                        
-                       files2 =
-                            Directory.EnumerateFileSystemEntries(d, mask,enumerationOptions);
+                // Files only (EnumerateFileSystemEntries also returned directories), skip empty files like the
+                // legacy path does, and do not recurse into junctions/symlinks, which can loop on mounted images.
+                // Reparse-point *files* (e.g. cloud placeholders) are still included.
+                var enumerationOptions = new EnumerationOptions
+                {
+                    IgnoreInaccessible = true,
+                    RecurseSubdirectories = true,
+                    AttributesToSkip = 0
+                };
+
+                var searchMask = mask;
+                files2 = new FileSystemEnumerable<string>(d,
+                    (ref FileSystemEntry entry) => entry.ToFullPath(), enumerationOptions)
+                {
+                    ShouldIncludePredicate = (ref FileSystemEntry entry) =>
+                        !entry.IsDirectory && entry.Length > 0 &&
+                        FileSystemName.MatchesSimpleExpression(searchMask, entry.FileName),
+                    ShouldRecursePredicate = (ref FileSystemEntry entry) =>
+                        (entry.Attributes & FileAttributes.ReparsePoint) == 0
+                };
 
 #else 
 // Legacy implementation for previous frameworks
@@ -493,13 +510,13 @@ internal class Program
             {
                 Log.Error(ua,
                     "Unable to access {D}. Error message: {Message}",d,ua.Message);
-                return;
+                return 1;
             }
             catch (Exception ex)
             {
                 Log.Error(ex,
                     "Error getting lnk files in {D}. Error: {Message}",d,ex.Message);
-                return;
+                return 1;
             }
 
             Log.Information("Found {Length:N0} files",lnkFiles.Length);
@@ -535,7 +552,18 @@ internal class Program
                     Log.Information("  {FailedFile}",failedFile);
                 }
             }
+
+            var withProblems = _processedFiles.Count(t => t.ParseErrors.Count > 0);
+            if (withProblems > 0)
+            {
+                Console.WriteLine();
+                Log.Warning(
+                    "{Count:N0} file(s) were parsed but have problems or anomalies. See the Anomalies column or the per-file output for details",
+                    withProblems);
+            }
         }
+
+        var exportErrors = 0;
 
         if (_processedFiles.Count > 0)
         {
@@ -624,7 +652,7 @@ internal class Program
                     var outFile = Path.Combine(json, outName);
 
 
-                    jsonOut = new StreamWriter(new FileStream(outFile, FileMode.OpenOrCreate, FileAccess.Write),
+                    jsonOut = new StreamWriter(new FileStream(outFile, FileMode.Create, FileAccess.Write),
                         new UTF8Encoding(false));
                 }
 
@@ -641,7 +669,7 @@ internal class Program
                     File.WriteAllText(Path.Combine(outDir, "normalize.css"), Resources.normalize);
                     File.WriteAllText(Path.Combine(outDir, "style.css"), Resources.style);
 
-                    var outFile = Path.Combine(html, outDir, "index.xhtml");
+                    var outFile = Path.Combine(outDir, "index.xhtml");
 
                     Log.Information("Saving HTML output to {OutFile}",outFile);
 
@@ -661,7 +689,19 @@ internal class Program
 
                 foreach (var processedFile in _processedFiles)
                 {
-                    var o = GetCsvFormat(processedFile, false, dt);
+                    CsvOut o;
+                    try
+                    {
+                        o = GetCsvFormat(processedFile, false, dt);
+                    }
+                    catch (Exception ex)
+                    {
+                        exportErrors += 1;
+                        Log.Error(ex,
+                            "Error building output record for {SourceFile}. It is missing from the exported files. Error: {Message}",
+                            processedFile.SourceFile, ex.Message);
+                        continue;
+                    }
 
                     try
                     {
@@ -676,21 +716,18 @@ internal class Program
 
                     if (jsonOut != null)
                     {
-                        var oldDt = dt;
-
-                        dt = "o";
-
-                        var cs = GetCsvFormat(processedFile, true, dt);
-
-                        dt = oldDt;
-
-                        if (pretty)
+                        try
                         {
-                            jsonOut.WriteLine(cs.Dump());
+                            var cs = GetCsvFormat(processedFile, true, "o");
+
+                            jsonOut.WriteLine(pretty ? cs.Dump() : cs.ToJson());
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            jsonOut.WriteLine(cs.ToJson());
+                            exportErrors += 1;
+                            Log.Error(ex,
+                                "Error writing JSON for {SourceFile}. Error: {Message}", processedFile.SourceFile,
+                                ex.Message);
                         }
                     }
 
@@ -733,6 +770,16 @@ internal class Program
 
                     xmlTextWriter?.WriteElementString("ExtraBlocksPresent", o.ExtraBlocksPresent);
 
+                    xmlTextWriter?.WriteElementString("Name", o.Name);
+                    xmlTextWriter?.WriteElementString("IconLocation", o.IconLocation);
+                    xmlTextWriter?.WriteElementString("ShowWindow", o.ShowWindow);
+                    xmlTextWriter?.WriteElementString("EnvironmentVariables", o.EnvironmentVariables);
+                    xmlTextWriter?.WriteElementString("VolumeDroid", o.VolumeDroid);
+                    xmlTextWriter?.WriteElementString("FileDroid", o.FileDroid);
+                    xmlTextWriter?.WriteElementString("VolumeDroidBirth", o.VolumeDroidBirth);
+                    xmlTextWriter?.WriteElementString("FileDroidBirth", o.FileDroidBirth);
+                    xmlTextWriter?.WriteElementString("Anomalies", o.Anomalies);
+
                     xmlTextWriter?.WriteEndElement();
 
                     if (xml?.Length > 0)
@@ -754,12 +801,16 @@ internal class Program
                 xmlTextWriter?.WriteEndElement();
                 xmlTextWriter?.WriteEndDocument();
                 xmlTextWriter?.Flush();
+                xmlTextWriter?.Close();
             }
             catch (Exception ex)
             {
+                exportErrors += 1;
                 Log.Error(ex,"Error exporting data! Error: {Message}",ex.Message);
             }
         }
+
+        return _failedFiles.Count > 0 || exportErrors > 0 ? 1 : 0;
     }
 
 
@@ -780,15 +831,9 @@ internal class Program
             SourceCreated = lnk.SourceCreated?.ToString(datetimeFormat) ?? string.Empty,
             SourceModified = lnk.SourceModified?.ToString(datetimeFormat) ?? string.Empty,
             SourceAccessed = lnk.SourceAccessed?.ToString(datetimeFormat) ?? string.Empty,
-            TargetCreated = lnk.Header.TargetCreationDate.Year == 1601
-                ? string.Empty
-                : lnk.Header.TargetCreationDate.ToString(datetimeFormat),
-            TargetModified = lnk.Header.TargetModificationDate.Year == 1601
-                ? string.Empty
-                : lnk.Header.TargetModificationDate.ToString(datetimeFormat),
-            TargetAccessed = lnk.Header.TargetLastAccessedDate.Year == 1601
-                ? String.Empty
-                : lnk.Header.TargetLastAccessedDate.ToString(datetimeFormat),
+            TargetCreated = FormatTimestamp(lnk.Header.TargetCreationDate, datetimeFormat),
+            TargetModified = FormatTimestamp(lnk.Header.TargetModificationDate, datetimeFormat),
+            TargetAccessed = FormatTimestamp(lnk.Header.TargetLastAccessedDate, datetimeFormat),
             CommonPath = lnk.CommonPath,
             VolumeLabel = lnk.VolumeInfo?.VolumeLabel,
             VolumeSerialNumber = lnk.VolumeInfo?.VolumeSerialNumber,
@@ -799,7 +844,14 @@ internal class Program
             LocalPath = lnk.LocalPath,
             NetworkPath = netPath,
             RelativePath = lnk.RelativePath,
-            Arguments = lnk.Arguments
+            Arguments = lnk.Arguments,
+            Name = lnk.Name,
+            IconLocation = lnk.IconLocation,
+            ShowWindow = lnk.Header.ShowWindow.ToString(),
+            EnvironmentVariables = lnk.ExtraBlocks.OfType<EnvironmentVariableDataBlock>().FirstOrDefault() is { } env
+                ? (env.EnvironmentVariablesUnicode.IsNullOrEmpty() ? env.EnvironmentVariablesAscii : env.EnvironmentVariablesUnicode)
+                : null,
+            Anomalies = string.Join(" | ", GetAnomalies(lnk))
         };
 
 
@@ -826,18 +878,25 @@ internal class Program
 
         csOut.ExtraBlocksPresent = ebPresent;
 
-        var tnb = lnk.ExtraBlocks.SingleOrDefault(t => t.GetType().Name.ToUpper() == "TRACKERDATABASEBLOCK");
+        // FirstOrDefault, not SingleOrDefault: a (crafted) file with two tracker blocks used to throw here and abort
+        // the export of every file
+        var tnbBlock = lnk.ExtraBlocks.OfType<TrackerDataBaseBlock>().FirstOrDefault();
 
-
-        if (tnb != null)
+        if (tnbBlock != null)
         {
-            var tnbBlock = tnb as TrackerDataBaseBlock;
+            csOut.MachineID = tnbBlock.MachineId;
+            csOut.VolumeDroid = tnbBlock.VolumeDroid.ToString();
+            csOut.FileDroid = tnbBlock.FileDroid.ToString();
+            csOut.VolumeDroidBirth = tnbBlock.VolumeDroidBirth.ToString();
+            csOut.FileDroidBirth = tnbBlock.FileDroidBirth.ToString();
 
-            csOut.TrackerCreatedOn = tnbBlock?.CreationTime.ToString(datetimeFormat);
-
-            csOut.MachineID = tnbBlock?.MachineId;
-            csOut.MachineMACAddress = tnbBlock?.MacAddress;
-            csOut.MACVendor = GetVendorFromMac(tnbBlock?.MacAddress);
+            // The MAC address and creation time are only encoded in version 1 (time-based) UUIDs
+            if (IsTimeBasedGuid(tnbBlock.FileDroid))
+            {
+                csOut.TrackerCreatedOn = tnbBlock.CreationTime.ToString(datetimeFormat);
+                csOut.MachineMACAddress = tnbBlock.MacAddress;
+                csOut.MACVendor = GetVendorFromMac(tnbBlock.MacAddress);
+            }
         }
 
         if (lnk.TargetIDs?.Count > 0)
@@ -888,8 +947,17 @@ internal class Program
                 Directory.CreateDirectory(outDir);
             }
 
+            // Include a short hash of the full source path: shortcuts with the same name in different folders
+            // (Command Prompt.lnk, Desktop.lnk, ...) used to overwrite each other within the same second.
+            string pathHash;
+            using (var sha = SHA1.Create())
+            {
+                pathHash = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(csout.SourceFile ?? string.Empty)), 0, 4)
+                    .Replace("-", "");
+            }
+
             var outName =
-                $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_{Path.GetFileName(csout.SourceFile)}.xml";
+                $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_{Path.GetFileName(csout.SourceFile)}_{pathHash}.xml";
             var outFile = Path.Combine(outDir, outName);
 
 
@@ -921,12 +989,17 @@ internal class Program
 
         foreach (var shellBag in ids)
         {
+            if (shellBag is ShellBagDamaged)
+            {
+                // The placeholder's Value is an error message, not a path segment
+                absPath += @"(damaged item)\";
+                continue;
+            }
+
             absPath += shellBag.Value?.Trim('\\') + @"\";
         }
 
-        absPath = absPath.Substring(0, absPath.Length - 1);
-
-        return absPath;
+        return absPath.Length > 0 ? absPath.Substring(0, absPath.Length - 1) : absPath;
     }
 
     private static LnkFile ProcessFile(string lnkFile, bool quiet, bool removableOnly, string datetimeFormat, bool nid,
@@ -941,722 +1014,688 @@ internal class Program
         var sw = new Stopwatch();
         sw.Start();
 
+        LnkFile lnk;
+
         try
         {
-            var lnk = Lnk.Lnk.LoadFile(lnkFile, codepage);
-
-            if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
-            {
-                return null;
-            }
-
-            if (quiet == false)
-            {
-                Log.Information("Source file: {Name}",lnk.SourceFile.Replace("\\\\?\\", ""));
-                Log.Information("  Source created:  {Date}",lnk.SourceCreated);
-                Log.Information("  Source modified: {Date}",lnk.SourceModified);
-                Log.Information("  Source accessed: {Date}",lnk.SourceAccessed);
-                Console.WriteLine();
-
-                Log.Information("--- Header ---");
-
-                DateTimeOffset? tc = lnk.Header.TargetCreationDate.Year == 1601
-                    ? null
-                    : lnk.Header.TargetCreationDate;
-                DateTimeOffset? tm = lnk.Header.TargetModificationDate.Year == 1601
-                    ? null
-                    : lnk.Header.TargetModificationDate;
-                DateTimeOffset? ta = lnk.Header.TargetLastAccessedDate.Year == 1601
-                    ? null
-                    : lnk.Header.TargetLastAccessedDate;
-
-                Log.Information("  Target created:  {Tc}",tc);
-                Log.Information("  Target modified: {Tm}",tm);
-                Log.Information("  Target accessed: {Ta}",ta);
-                Console.WriteLine();
-                Log.Information("  File size (bytes): {FileSize:N0}",lnk.Header.FileSize);
-                Log.Information("  Flags: {DataFlags}",lnk.Header.DataFlags);
-                Log.Information("  File attributes: {FileAttributes}",lnk.Header.FileAttributes);
-
-                if (lnk.Header.HotKey.Length > 0)
-                {
-                    Log.Information("  Hot key: {HotKey}",lnk.Header.HotKey);
-                }
-
-                Log.Information("  Icon index: {IconIndex}",lnk.Header.IconIndex);
-                Log.Information(
-                    "  Show window: {ShowWindow} ({Desc})",lnk.Header.ShowWindow,GetDescriptionFromEnumValue(lnk.Header.ShowWindow));
-
-                Console.WriteLine();
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasName) == Lnk.Header.DataFlag.HasName)
-                {
-                    Log.Information("Name: {Name}",lnk.Name);
-                }
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasRelativePath) == Lnk.Header.DataFlag.HasRelativePath)
-                {
-                    Log.Information("Relative Path: {RelativePath}",lnk.RelativePath);
-                }
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasWorkingDir) == Lnk.Header.DataFlag.HasWorkingDir)
-                {
-                    Log.Information("Working Directory: {WorkingDirectory}",lnk.WorkingDirectory);
-                }
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasArguments) == Lnk.Header.DataFlag.HasArguments)
-                {
-                    Log.Information("Arguments: {Arguments}",lnk.Arguments);
-                }
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasIconLocation) == Lnk.Header.DataFlag.HasIconLocation)
-                {
-                    Log.Information("Icon Location: {IconLocation}",lnk.IconLocation);
-                }
-
-                if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasLinkInfo) == Lnk.Header.DataFlag.HasLinkInfo)
-                {
-                    Console.WriteLine();
-                    Log.Information("--- Link information ---");
-                    Log.Information("Flags: {Flags}",lnk.LocationFlags);
-
-                    if (lnk.VolumeInfo != null)
-                    {
-                        Console.WriteLine();
-                        Log.Information(">> Volume information");
-                        Log.Information("  Drive type: {Drive}",GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType));
-                        Log.Information("  Serial number: {VolumeSerialNumber}",lnk.VolumeInfo.VolumeSerialNumber);
-
-                        var label = lnk.VolumeInfo.VolumeLabel.Length > 0
-                            ? lnk.VolumeInfo.VolumeLabel
-                            : "(No label)";
-
-                        Log.Information("  Label: {Label}",label);
-                    }
-
-                    if (lnk.NetworkShareInfo != null)
-                    {
-                        Console.WriteLine();
-                        Log.Information("  Network share information");
-
-                        if (lnk.NetworkShareInfo.DeviceName.Length > 0)
-                        {
-                            Log.Information("    Device name: {DeviceName}",lnk.NetworkShareInfo.DeviceName);
-                        }
-
-                        Log.Information("    Share name: {NetworkShareName}",lnk.NetworkShareInfo.NetworkShareName);
-
-                        Log.Information("    Provider type: {NetworkProviderType}",lnk.NetworkShareInfo.NetworkProviderType);
-                        Log.Information("    Share flags: {ShareFlags}",lnk.NetworkShareInfo.ShareFlags);
-                        Console.WriteLine();
-                    }
-
-                    if (lnk.LocalPath?.Length > 0)
-                    {
-                        Log.Information("  Local path: {LocalPath}",lnk.LocalPath);
-                    }
-
-                    if (lnk.CommonPath.Length > 0)
-                    {
-                        Log.Information("  Common path: {CommonPath}",lnk.CommonPath);
-                    }
-                }
-
-                if (nid)
-                {
-                    Console.WriteLine();
-                    Log.Information("(Target ID information suppressed. Lnk TargetID count: {Count:N0})",lnk.TargetIDs.Count);
-                }
-
-                if (lnk.TargetIDs.Count > 0 && !nid)
-                {
-                    Console.WriteLine();
-
-                    Log.Information("--- Target ID information (Format: Type ==> Value) ---");
-                    Console.WriteLine();
-                    Log.Information("  Absolute path: {AbsPath}",GetAbsolutePathFromTargetIDs(lnk.TargetIDs));
-                    Console.WriteLine();
-
-                    foreach (var shellBag in lnk.TargetIDs)
-                    {
-                        //HACK
-                        //This is a total hack until i can refactor some shellbag code to clean things up
-
-                        var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-
-                        Log.Information("  -{FriendlyName} ==> {Value}", shellBag.FriendlyName, val);
-
-                        switch (shellBag.GetType().Name.ToUpper())
-                        {
-                            case "SHELLBAG0X36":
-                            case "SHELLBAG0X32":
-                                var b32 = shellBag as ShellBag0X32;
-
-                                Log.Information("    Short name: {ShortName}",b32.ShortName);
-                                if (b32.LastModificationTime.HasValue)
-                                {
-                                    Log.Information(
-                                        "    Modified:    {LastModificationTime}",b32.LastModificationTime.Value);
-                                }
-                                else
-                                {
-                                    Log.Information($"    Modified:");
-                                }
-
-
-                                var extensionNumber32 = 0;
-                                if (b32.ExtensionBlocks.Count > 0)
-                                {
-                                    Log.Information("    Extension block count: {Count:N0}",b32.ExtensionBlocks.Count);
-                                    Console.WriteLine();
-                                    foreach (var extensionBlock in b32.ExtensionBlocks)
-                                    {
-                                        Log.Information("    --------- Block {ExtensionNumber32:N0} ({Name}) ---------",extensionNumber32,extensionBlock.GetType().Name);
-                                        
-                                        if (extensionBlock is Beef0004)
-                                        {
-                                            var b4 = extensionBlock as Beef0004;
-
-                                            Log.Information("    Long name: {LongName}",b4.LongName);
-                                            if (b4.LocalisedName.Length > 0)
-                                            {
-                                                Log.Information("    Localized name: {LocalisedName}",b4.LocalisedName);
-                                            }
-
-                                            if (b4.CreatedOnTime.HasValue)
-                                            {
-                                                Log.Information(
-                                                    "    Created:     {CreatedOnTime}",b4.CreatedOnTime.Value);
-                                            }
-                                            else
-                                            {
-                                                Log.Information($"    Created:");
-                                            }
-
-                                            if (b4.LastAccessTime.HasValue)
-                                            {
-                                                Log.Information(
-                                                    "    Last access: {LastAccessTime}",b4.LastAccessTime.Value);
-                                            }
-                                            else
-                                            {
-                                                Log.Information($"    Last access: ");
-                                            }
-
-                                            if (b4.MFTInformation.MFTEntryNumber > 0)
-                                            {
-                                                Log.Information(
-                                                    "    MFT entry/sequence #: {MftEntryNumber}/{MftSequenceNumber} (0x{MftEntryNumber2:X}/0x{MftSequenceNumber2:X})",b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber,b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber);
-                                            }
-                                        }
-                                        else if (extensionBlock is Beef0025)
-                                        {
-                                            var b25 = extensionBlock as Beef0025;
-                                            Log.Information(
-                                                "    Filetime 1: {FileTime1}, Filetime 2: {FileTime2}",b25.FileTime1.Value,b25.FileTime2.Value);
-                                        }
-                                        else if (extensionBlock is Beef0003)
-                                        {
-                                            var b3 = extensionBlock as Beef0003;
-                                            Log.Information("    GUID: {Guid1} ({Guid1Folder})",b3.GUID1,b3.GUID1Folder);
-                                        }
-                                        else if (extensionBlock is Beef001a)
-                                        {
-                                            var b3 = extensionBlock as Beef001a;
-                                            Log.Information("    File document type: {FileDocumentTypeString}",b3.FileDocumentTypeString);
-                                        }
-
-                                        else
-                                        {
-                                            Log.Information("    {ExtensionBlock}",extensionBlock);
-                                        }
-
-                                        extensionNumber32 += 1;
-                                    }
-                                }
-
-                                break;
-                            case "SHELLBAG0X31":
-
-                                var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
-
-                                Log.Information("    Short name: {ShortName}",b3x.ShortName);
-                                if (b3x.LastModificationTime.HasValue)
-                                {
-                                    Log.Information(
-                                        "    Modified:    {LastModificationTime}",b3x.LastModificationTime.Value);
-                                }
-                                else
-                                {
-                                    Log.Information($"    Modified:");
-                                }
-
-                                var extensionNumber = 0;
-                                if (b3x.ExtensionBlocks.Count > 0)
-                                {
-                                    Log.Information("    Extension block count: {Count:N0}",b3x.ExtensionBlocks.Count);
-                                    Console.WriteLine();
-                                    foreach (var extensionBlock in b3x.ExtensionBlocks)
-                                    {
-                                        Log.Information("    --------- Block {ExtensionNumber:N0} ({Name}) ---------",extensionNumber,extensionBlock.GetType().Name);
-                                    
-                                        if (extensionBlock is Beef0004)
-                                        {
-                                            var b4 = extensionBlock as Beef0004;
-
-                                            Log.Information("    Long name: {LongName}",b4.LongName);
-                                            if (b4.LocalisedName.Length > 0)
-                                            {
-                                                Log.Information("    Localized name: {LocalisedName}",b4.LocalisedName);
-                                            }
-
-                                            if (b4.CreatedOnTime.HasValue)
-                                            {
-                                                Log.Information(
-                                                    "    Created:     {CreatedOnTime}",b4.CreatedOnTime.Value);
-                                            }
-                                            else
-                                            {
-                                                Log.Information($"    Created:");
-                                            }
-
-                                            if (b4.LastAccessTime.HasValue)
-                                            {
-                                                Log.Information(
-                                                    "    Last access: {LastAccessTime}",b4.LastAccessTime);
-                                            }
-                                            else
-                                            {
-                                                Log.Information($"    Last access: ");
-                                            }
-
-                                            if (b4.MFTInformation.MFTEntryNumber > 0)
-                                            {
-                                                Log.Information(
-                                                    "    MFT entry/sequence #: {MftEntryNumber}/{MftSequenceNumber} (0x{MftEntryNumber2:X}/0x{MftSequenceNumber2:X})",b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber,b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber);
-                                            }
-                                        }
-                                        else if (extensionBlock is Beef0025)
-                                        {
-                                            var b25 = extensionBlock as Beef0025;
-                                            Log.Information(
-                                                "    Filetime 1: {FileTime1}, Filetime 2: {FileTime2}",b25.FileTime1.Value,b25.FileTime2.Value);
-                                        }
-                                        else if (extensionBlock is Beef0003)
-                                        {
-                                            var b3 = extensionBlock as Beef0003;
-                                            Log.Information("    GUID: {Guid1} ({Guid1Folder})",b3.GUID1,b3.GUID1Folder);
-                                        }
-                                        else if (extensionBlock is Beef001a)
-                                        {
-                                            var b3 = extensionBlock as Beef001a;
-                                            Log.Information("    File document type: {FileDocumentTypeString}",b3.FileDocumentTypeString);
-                                        }
-                                        else
-                                        {
-                                            Log.Information("    {ExtensionBlock}",extensionBlock);
-                                        }
-
-                                        extensionNumber += 1;
-                                    }
-                                }
-
-                                break;
-
-                            case "SHELLBAG0X00":
-                                var b00 = shellBag as ShellBag0X00;
-
-                                if (b00.PropertyStore.Sheets.Count > 0)
-                                {
-                                    Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                                    var propCount = 0;
-
-                                    foreach (var prop in b00.PropertyStore.Sheets)
-                                    {
-                                        foreach (var propertyName in prop.PropertyNames)
-                                        {
-                                            propCount += 1;
-
-                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                            var suffix = string.Empty;
-
-                                            if (intParsed)
-                                            {
-                                                suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, propNameAsInt)}"
-                                                        .PadRight(35);
-                                            }
-
-//                                                var suffix =
-//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-//                                                        .PadRight(35);
-
-                                            Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
-                                        }
-                                    }
-
-                                    if (propCount == 0)
-                                    {
-                                        Log.Warning("     (Property store is empty)");
-                                    }
-                                }
-
-                                break;
-                            case "SHELLBAG0X01":
-                                var baaaa1f = shellBag as ShellBag0X01;
-                                if (baaaa1f.DriveLetter.Length > 0)
-                                {
-                                    Log.Information("  Drive letter: {DriveLetter}",baaaa1f.DriveLetter);
-                                }
-
-                                break;
-                            case "SHELLBAG0X1F":
-
-                                var b1f = shellBag as ShellBag0X1F;
-
-                                if (b1f.PropertyStore.Sheets.Count > 0)
-                                {
-                                    Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                                    var propCount = 0;
-
-                                    foreach (var prop in b1f.PropertyStore.Sheets)
-                                    {
-                                        foreach (var propertyName in prop.PropertyNames)
-                                        {
-                                            propCount += 1;
-
-                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                            var suffix = string.Empty;
-
-                                            if (intParsed)
-                                            {
-                                                suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                        .PadRight(35);
-                                            }
-
-                                            Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
-                                        }
-                                    }
-
-                                    if (propCount == 0)
-                                    {
-                                        Log.Warning("     (Property store is empty)");
-                                    }
-                                }
-
-                                break;
-                            case "SHELLBAG0X2E":
-                                break;
-                            case "SHELLBAG0X2F":
-                                var b2f = shellBag as ShellBag0X2F;
-
-                                break;
-                            case "SHELLBAG0X40":
-                                break;
-                            case "SHELLBAG0X61":
-
-                                break;
-                            case "SHELLBAG0X71":
-                                var b71 = shellBag as ShellBag0X71;
-                                if (b71.PropertyStore?.Sheets.Count > 0)
-                                {
-                                    Log.Fatal("Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
-                                }
-
-                                break;
-                            case "SHELLBAG0X74":
-                                var b74 = shellBag as ShellBag0X74;
-
-                                if (b74.LastModificationTime.HasValue)
-                                {
-                                    Log.Information(
-                                        "    Modified:    {LastModificationTime}",b74.LastModificationTime.Value);
-                                }
-                                else
-                                {
-                                    Log.Information($"    Modified:");
-                                }
-
-                                var extensionNumber74 = 0;
-                                if (b74.ExtensionBlocks.Count > 0)
-                                {
-                                    Log.Information("    Extension block count: {Count:N0}",b74.ExtensionBlocks.Count);
-                                    Console.WriteLine();
-                                    foreach (var extensionBlock in b74.ExtensionBlocks)
-                                    {
-                                        Log.Information("    --------- Block {ExtNum:N0} ({Name}) ---------",extensionNumber74,extensionBlock.GetType().Name);
-                                        
-                                        if (extensionBlock is Beef0004)
-                                        {
-                                            var b4 = extensionBlock as Beef0004;
-
-                                            Log.Information("    Long name: {LongName}",b4.LongName);
-                                            if (b4.LocalisedName.Length > 0)
-                                            {
-                                                Log.Information("    Localized name: {LocalisedName}",b4.LocalisedName);
-                                            }
-
-                                            if (b4.CreatedOnTime.HasValue)
-                                            {
-                                                Log.Information("    Created:     {CreatedOnTime}",b4.CreatedOnTime.Value);
-                                            }
-                                            else
-                                            {
-                                                Log.Information($"    Created:");
-                                            }
-
-                                            if (b4.LastAccessTime.HasValue)
-                                            {
-                                                Log.Information("    Last access: {LastAccessTime}",b4.LastAccessTime.Value);
-                                            }
-                                            else
-                                            {
-                                                Log.Information("    Last access: ");
-                                            }
-
-                                            if (b4.MFTInformation.MFTEntryNumber > 0)
-                                            {
-                                                Log.Information("    MFT entry/sequence #: {MftEntryNumber}/{MftSequenceNumber} (0x{MftEntryNumber2:X}/0x{MftSequenceNumber2:X})",b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber,b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber);
-                                            }
-                                        }
-                                        else if (extensionBlock is Beef0025)
-                                        {
-                                            var b25 = extensionBlock as Beef0025;
-                                            Log.Information("    Filetime 1: {FileTime1}, Filetime 2: {FileTime2}",b25.FileTime1.Value,b25.FileTime2.Value);
-                                        }
-                                        else if (extensionBlock is Beef0003)
-                                        {
-                                            var b3 = extensionBlock as Beef0003;
-                                            Log.Information("    GUID: {Guid1} ({Guid1Folder})",b3.GUID1,b3.GUID1Folder);
-                                        }
-                                        else if (extensionBlock is Beef001a)
-                                        {
-                                            var b3 = extensionBlock as Beef001a;
-                                            Log.Information("    File document type: {FileDocumentTypeString}",b3.FileDocumentTypeString);
-                                        }
-                                        else
-                                        {
-                                            Log.Information("    {ExtensionBlock}",extensionBlock);
-                                        }
-
-                                        extensionNumber74 += 1;
-                                    }
-                                }
-
-                                break;
-                            case "SHELLBAG0X23":
-                            case "SHELLBAG0XC3":
-                                break;
-                            case "SHELLBAGZIPCONTENTS":
-                                break;
-                            default:
-                                Log.Warning(">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
-                                Log.Warning(">> {ShellBag}",shellBag);
-                                break;
-                        }
-
-                        Console.WriteLine();
-                    }
-
-                    Log.Information("--- End Target ID information ---");
-                }
-
-                if (neb)
-                {
-                    Console.WriteLine();
-                    Log.Information("(Extra blocks information suppressed. Lnk Extra block count: {Count:N0})",lnk.ExtraBlocks.Count);
-                }
-
-                if (lnk.ExtraBlocks.Count > 0 && !neb)
-                {
-                    Console.WriteLine();
-                    Log.Information("--- Extra blocks information ---");
-                    
-                    Console.WriteLine();
-
-                    foreach (var extraDataBase in lnk.ExtraBlocks)
-                    {
-                        switch (extraDataBase.GetType().Name)
-                        {
-                            case "ConsoleDataBlock":
-                                var cdb = extraDataBase as ConsoleDataBlock;
-                                Log.Information(">> Console data block");
-                                Log.Information("   Fill Attributes: {FillAttributes}",cdb.FillAttributes);
-                                Log.Information("   Popup Attributes: {PopupFillAttributes}",cdb.PopupFillAttributes);
-                                Log.Information(
-                                    "   Buffer Size (Width x Height): {ScreenWidthBufferSize} x {ScreenHeightBufferSize}",cdb.ScreenWidthBufferSize,cdb.ScreenHeightBufferSize);
-                                Log.Information(
-                                    "   Window Size (Width x Height): {WindowWidth} x {WindowHeight}",cdb.WindowWidth,cdb.WindowHeight);
-                                Log.Information("   Origin (X/Y): {WindowOriginX}/{WindowOriginY}",cdb.WindowOriginX,cdb.WindowOriginY);
-                                Log.Information("   Font Size: {FontSize}",cdb.FontSize);
-                                Log.Information("   Is Bold: {IsBold}",cdb.IsBold);
-                                Log.Information("   Face Name: {FaceName}",cdb.FaceName);
-                                Log.Information("   Cursor Size: {CursorSize}",cdb.CursorSize);
-                                Log.Information("   Is Full Screen: {IsFullScreen}",cdb.IsFullScreen);
-                                Log.Information("   Is Quick Edit: {IsQuickEdit}",cdb.IsQuickEdit);
-                                Log.Information("   Is Insert Mode: {IsInsertMode}",cdb.IsInsertMode);
-                                Log.Information("   Is Auto Positioned: {IsAutoPositioned}",cdb.IsAutoPositioned);
-                                Log.Information("   History Buffer Size: {HistoryBufferSize}",cdb.HistoryBufferSize);
-                                Log.Information("   History Buffer Count: {HistoryBufferCount}",cdb.HistoryBufferCount);
-                                Log.Information("   History Duplicates Allowed: {HistoryDuplicatesAllowed}",cdb.HistoryDuplicatesAllowed);
-                                Console.WriteLine();
-                                break;
-                            case "ConsoleFEDataBlock":
-                                var cfedb = extraDataBase as ConsoleFeDataBlock;
-                                Log.Information(">> Console FE data block");
-                                Log.Information("   Code page: {CodePage}",cfedb.CodePage);
-                                Console.WriteLine();
-                                break;
-                            case "DarwinDataBlock":
-                                var ddb = extraDataBase as DarwinDataBlock;
-                                Log.Information(">> Darwin data block");
-                                Log.Information("   Application ID: {ApplicationIdentifierUnicode}",ddb.ApplicationIdentifierUnicode);
-                                Log.Information("   Product code: {ProductCode}",ddb.ProductCode);
-                                Log.Information("   Feature name: {FeatureName}",ddb.FeatureName);
-                                Log.Information("   Component ID: {ComponentId}",ddb.ComponentId);
-                                Console.WriteLine();
-                                break;
-                            case "EnvironmentVariableDataBlock":
-                                var evdb = extraDataBase as EnvironmentVariableDataBlock;
-                                Log.Information(">> Environment variable data block");
-                                Log.Information("   Environment variables: {EnvironmentVariablesUnicode}",evdb.EnvironmentVariablesUnicode);
-                                Console.WriteLine();
-                                break;
-                            case "IconEnvironmentDataBlock":
-                                var iedb = extraDataBase as IconEnvironmentDataBlock;
-                                Log.Information(">> Icon environment data block");
-                                Log.Information("   Icon path: {IconPathUni}",iedb.IconPathUni);
-                                Console.WriteLine();
-                                break;
-                            case "KnownFolderDataBlock":
-                                var kfdb = extraDataBase as KnownFolderDataBlock;
-                                Log.Information(">> Known folder data block");
-                                Log.Information(
-                                    "   Known folder GUID: {KnownFolderId} ==> {KnownFolderName}",kfdb.KnownFolderId,kfdb.KnownFolderName);
-                                Console.WriteLine();
-                                break;
-                            case "PropertyStoreDataBlock":
-                                var psdb = extraDataBase as PropertyStoreDataBlock;
-
-                                if (psdb.PropertyStore.Sheets.Count > 0)
-                                {
-                                    Log.Information(">> Property store data block (Format: GUID\\ID Description ==> Value)");
-                                    var propCount = 0;
-
-                                    foreach (var prop in psdb.PropertyStore.Sheets)
-                                    {
-                                        foreach (var propertyName in prop.PropertyNames)
-                                        {
-                                            propCount += 1;
-
-                                            var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                            var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                            var suffix = string.Empty;
-
-                                            if (intParsed)
-                                            {
-                                                suffix =
-                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                        .PadRight(35);
-                                            }
-
-//                                                var suffix =
-//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-//                                                        .PadRight(35);
-
-                                            Log.Information("   {Prefix} {Suffix} ==> {PropertyNameValue}",prefix,suffix,propertyName.Value);
-                                        }
-                                    }
-
-                                    if (propCount == 0)
-                                    {
-                                        Log.Warning("   (Property store is empty)");
-                                    }
-                                }
-
-                                Console.WriteLine();
-                                break;
-                            case "ShimDataBlock":
-                                var sdb = extraDataBase as ShimDataBlock;
-                                Log.Information(">> Shimcache data block");
-                                Log.Information("   Layer name: {LayerName}",sdb.LayerName);
-                                Console.WriteLine();
-                                break;
-                            case "SpecialFolderDataBlock":
-                                var sfdb = extraDataBase as SpecialFolderDataBlock;
-                                Log.Information(">> Special folder data block");
-                                Log.Information("   Special Folder ID: {SpecialFolderId}",sfdb.SpecialFolderId);
-                                Console.WriteLine();
-                                break;
-                            case "TrackerDataBaseBlock":
-                                var tdb = extraDataBase as TrackerDataBaseBlock;
-                                Log.Information(">> Tracker database block");
-                                Log.Information("   Machine ID:  {MachineId}",tdb.MachineId);
-                                Log.Information("   MAC Address: {MacAddress}",tdb.MacAddress);
-                                Log.Information("   MAC Vendor:  {Address}",GetVendorFromMac(tdb.MacAddress));
-                                Log.Information("   Creation:    {Date}",tdb.CreationTime);
-                                Console.WriteLine();
-                                Log.Information("   Volume Droid:       {VolumeDroid}",tdb.VolumeDroid);
-                                Log.Information("   Volume Droid Birth: {VolumeDroidBirth}",tdb.VolumeDroidBirth);
-                                Log.Information("   File Droid:         {FileDroid}",tdb.FileDroid);
-                                Log.Information("   File Droid birth:   {FileDroidBirth}",tdb.FileDroidBirth);
-                                Console.WriteLine();
-                                break;
-                            case "VistaAndAboveIdListDataBlock":
-                                var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
-                                Log.Information(">> Vista and above ID List data block");
-
-                                foreach (var shellBag in vdb.TargetIDs)
-                                {
-                                    var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
-                                    Log.Information("   {FriendlyName} ==> {Val}", shellBag.FriendlyName, val);
-                                }
-
-                                Console.WriteLine();
-                                break;
-                            case "DamagedDataBlock":
-                                var dmg = extraDataBase as DamagedDataBlock;
-                                Log.Information("Damaged data block");
-                                Log.Information("   Original Signature: {OriginalSignature}",dmg.OriginalSignature);
-                                Log.Information("   Error Message: {ErrorMessage}",dmg.ErrorMessage);
-
-                                break;
-                        }
-                    }
-                }
-            }
-
-            sw.Stop();
-
-            if (quiet == false)
-            {
-                Console.WriteLine();
-            }
-
-            Log.Information("---------- Processed {Name} in {TotalSeconds:N8} seconds ----------",lnk.SourceFile.Replace("\\\\?\\", ""),sw.Elapsed.TotalSeconds);
-
-            if (quiet == false)
-            {
-                Log.Information("\r\n");
-            }
-
-            return lnk;
+            lnk = Lnk.Lnk.LoadFile(lnkFile, codepage);
         }
-
         catch (Exception ex)
         {
-            _failedFiles.Add($"{lnkFile.Replace("\\\\?\\", "")} ==> ({ex.Message})");
-            Log.Fatal(ex,"Error opening {LnkFile}. Message: {Message}",lnkFile,ex.Message);
+            var where = ex is LnkParseException { Offset: >= 0 } pe ? $" [{pe.Field} at offset {pe.Offset}]" : string.Empty;
+
+            _failedFiles.Add($"{lnkFile.Replace("\\\\?\\", "")} ==> ({ex.Message}){where}");
+            Log.Error(ex,"Error opening {LnkFile}. Message: {Message}{Where}",lnkFile,ex.Message,where);
+            Console.WriteLine();
+            return null;
+        }
+
+        if (removableOnly && lnk.VolumeInfo?.DriveType != VolumeInfo.DriveTypes.DriveRemovable)
+        {
+            return null;
+        }
+
+        if (quiet == false)
+        {
+            // A problem while displaying details must not turn a successfully parsed file into a failed one
+            // (previously -q and non -q runs could disagree about which files failed)
+            try
+            {
+                DisplayLnk(lnk, nid, neb);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex,
+                    "Unable to display all details for {LnkFile}. The file was parsed and is included in exported output. Error: {Message}",
+                    lnkFile, ex.Message);
+            }
+        }
+        else if (lnk.ParseErrors.Count > 0)
+        {
+            Log.Warning("{Name} was parsed with {Count:N0} problem(s): {Problems}", lnk.SourceFile.Replace("\\\\?\\", ""),
+                lnk.ParseErrors.Count, string.Join(" | ", lnk.ParseErrors));
+        }
+
+        sw.Stop();
+
+        if (quiet == false)
+        {
             Console.WriteLine();
         }
 
-        return null;
+        Log.Information("---------- Processed {Name} in {TotalSeconds:N8} seconds ----------",lnk.SourceFile.Replace("\\\\?\\", ""),sw.Elapsed.TotalSeconds);
+
+        if (quiet == false)
+        {
+            Log.Information("\r\n");
+        }
+
+        return lnk;
+    }
+
+    private static void DisplayLnk(LnkFile lnk, bool nid, bool neb)
+    {
+        Log.Information("Source file: {Name}",lnk.SourceFile.Replace("\\\\?\\", ""));
+        Log.Information("  Source created:  {Date}",lnk.SourceCreated);
+        Log.Information("  Source modified: {Date}",lnk.SourceModified);
+        Log.Information("  Source accessed: {Date}",lnk.SourceAccessed);
+        Console.WriteLine();
+
+        Log.Information("--- Header ---");
+
+        var tc = ToNullableTimestamp(lnk.Header.TargetCreationDate);
+        var tm = ToNullableTimestamp(lnk.Header.TargetModificationDate);
+        var ta = ToNullableTimestamp(lnk.Header.TargetLastAccessedDate);
+
+        Log.Information("  Target created:  {Tc}",tc);
+        Log.Information("  Target modified: {Tm}",tm);
+        Log.Information("  Target accessed: {Ta}",ta);
+        Console.WriteLine();
+        Log.Information("  File size (bytes): {FileSize:N0}",lnk.Header.FileSize);
+        Log.Information("  Flags: {DataFlags}",lnk.Header.DataFlags);
+        Log.Information("  File attributes: {FileAttributes}",lnk.Header.FileAttributes);
+
+        if (lnk.Header.HotKey.Length > 0)
+        {
+            Log.Information("  Hot key: {HotKey}",lnk.Header.HotKey);
+        }
+
+        Log.Information("  Icon index: {IconIndex}",lnk.Header.IconIndex);
+        Log.Information(
+            "  Show window: {ShowWindow} ({Desc})",lnk.Header.ShowWindow,GetDescriptionFromEnumValue(lnk.Header.ShowWindow));
+
+        Console.WriteLine();
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasName) == Lnk.Header.DataFlag.HasName)
+        {
+            Log.Information("Name: {Name}",lnk.Name);
+        }
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasRelativePath) == Lnk.Header.DataFlag.HasRelativePath)
+        {
+            Log.Information("Relative Path: {RelativePath}",lnk.RelativePath);
+        }
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasWorkingDir) == Lnk.Header.DataFlag.HasWorkingDir)
+        {
+            Log.Information("Working Directory: {WorkingDirectory}",lnk.WorkingDirectory);
+        }
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasArguments) == Lnk.Header.DataFlag.HasArguments)
+        {
+            Log.Information("Arguments: {Arguments}",lnk.Arguments);
+        }
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasIconLocation) == Lnk.Header.DataFlag.HasIconLocation)
+        {
+            Log.Information("Icon Location: {IconLocation}",lnk.IconLocation);
+        }
+
+        if ((lnk.Header.DataFlags & Lnk.Header.DataFlag.HasLinkInfo) == Lnk.Header.DataFlag.HasLinkInfo)
+        {
+            Console.WriteLine();
+            Log.Information("--- Link information ---");
+            Log.Information("Flags: {Flags}",lnk.LocationFlags);
+
+            if (lnk.VolumeInfo != null)
+            {
+                Console.WriteLine();
+                Log.Information(">> Volume information");
+                Log.Information("  Drive type: {Drive}",GetDescriptionFromEnumValue(lnk.VolumeInfo.DriveType));
+                Log.Information("  Serial number: {VolumeSerialNumber}",lnk.VolumeInfo.VolumeSerialNumber);
+
+                var label = lnk.VolumeInfo.VolumeLabel?.Length > 0
+                    ? lnk.VolumeInfo.VolumeLabel
+                    : "(No label)";
+
+                Log.Information("  Label: {Label}",label);
+            }
+
+            if (lnk.NetworkShareInfo != null)
+            {
+                Console.WriteLine();
+                Log.Information("  Network share information");
+
+                if (lnk.NetworkShareInfo.DeviceName?.Length > 0)
+                {
+                    Log.Information("    Device name: {DeviceName}",lnk.NetworkShareInfo.DeviceName);
+                }
+
+                Log.Information("    Share name: {NetworkShareName}",lnk.NetworkShareInfo.NetworkShareName);
+
+                // NetworkProviderType is only meaningful when the ValidNetType flag is set
+                Log.Information("    Provider type: {NetworkProviderType}",
+                    lnk.NetworkShareInfo.HasValidProviderType
+                        ? lnk.NetworkShareInfo.NetworkProviderType.ToString()
+                        : "(not set)");
+                Log.Information("    Share flags: {ShareFlags}",lnk.NetworkShareInfo.ShareFlags);
+                Console.WriteLine();
+            }
+
+            if (lnk.LocalPath?.Length > 0)
+            {
+                Log.Information("  Local path: {LocalPath}",lnk.LocalPath);
+            }
+
+            if (lnk.CommonPath?.Length > 0)
+            {
+                Log.Information("  Common path: {CommonPath}",lnk.CommonPath);
+            }
+        }
+
+        if (nid)
+        {
+            Console.WriteLine();
+            Log.Information("(Target ID information suppressed. Lnk TargetID count: {Count:N0})",lnk.TargetIDs.Count);
+        }
+
+        if (lnk.TargetIDs.Count > 0 && !nid)
+        {
+            Console.WriteLine();
+
+            Log.Information("--- Target ID information (Format: Type ==> Value) ---");
+            Console.WriteLine();
+            Log.Information("  Absolute path: {AbsPath}",GetAbsolutePathFromTargetIDs(lnk.TargetIDs));
+            Console.WriteLine();
+
+            foreach (var shellBag in lnk.TargetIDs)
+            {
+                //HACK
+                //This is a total hack until i can refactor some shellbag code to clean things up
+
+                var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
+
+                Log.Information("  -{FriendlyName} ==> {Value}", shellBag.FriendlyName, val);
+
+                switch (shellBag.GetType().Name.ToUpper())
+                {
+                    case "SHELLBAG0X36":
+                    case "SHELLBAG0X32":
+                        var b32 = shellBag as ShellBag0X32;
+
+                        Log.Information("    Short name: {ShortName}",b32.ShortName);
+                        if (b32.LastModificationTime.HasValue)
+                        {
+                            Log.Information(
+                                "    Modified:    {LastModificationTime}",b32.LastModificationTime.Value);
+                        }
+                        else
+                        {
+                            Log.Information($"    Modified:");
+                        }
+
+
+                        LogExtensionBlocks(b32.ExtensionBlocks);
+
+                        break;
+                    case "SHELLBAG0X31":
+
+                        var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
+
+                        Log.Information("    Short name: {ShortName}",b3x.ShortName);
+                        if (b3x.LastModificationTime.HasValue)
+                        {
+                            Log.Information(
+                                "    Modified:    {LastModificationTime}",b3x.LastModificationTime.Value);
+                        }
+                        else
+                        {
+                            Log.Information($"    Modified:");
+                        }
+
+                        LogExtensionBlocks(b3x.ExtensionBlocks);
+
+                        break;
+
+                    case "SHELLBAG0X00":
+                        var b00 = shellBag as ShellBag0X00;
+
+                        if (b00.PropertyStore.Sheets.Count > 0)
+                        {
+                            Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
+                            var propCount = 0;
+
+                            foreach (var prop in b00.PropertyStore.Sheets)
+                            {
+                                foreach (var propertyName in prop.PropertyNames)
+                                {
+                                    propCount += 1;
+
+                                    var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                    var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                    var suffix = string.Empty;
+
+                                    if (intParsed)
+                                    {
+                                        suffix =
+                                            $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, propNameAsInt)}"
+                                                .PadRight(35);
+                                    }
+
+//                                                var suffix =
+//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+//                                                        .PadRight(35);
+
+                                    Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
+                                }
+                            }
+
+                            if (propCount == 0)
+                            {
+                                Log.Warning("     (Property store is empty)");
+                            }
+                        }
+
+                        break;
+                    case "SHELLBAG0X01":
+                        var baaaa1f = shellBag as ShellBag0X01;
+                        if (baaaa1f.DriveLetter.Length > 0)
+                        {
+                            Log.Information("  Drive letter: {DriveLetter}",baaaa1f.DriveLetter);
+                        }
+
+                        break;
+                    case "SHELLBAG0X1F":
+
+                        var b1f = shellBag as ShellBag0X1F;
+
+                        if (b1f.PropertyStore.Sheets.Count > 0)
+                        {
+                            Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
+                            var propCount = 0;
+
+                            foreach (var prop in b1f.PropertyStore.Sheets)
+                            {
+                                foreach (var propertyName in prop.PropertyNames)
+                                {
+                                    propCount += 1;
+
+                                    var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                    var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                    var suffix = string.Empty;
+
+                                    if (intParsed)
+                                    {
+                                        suffix =
+                                            $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                .PadRight(35);
+                                    }
+
+                                    Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
+                                }
+                            }
+
+                            if (propCount == 0)
+                            {
+                                Log.Warning("     (Property store is empty)");
+                            }
+                        }
+
+                        break;
+                    case "SHELLBAG0X2E":
+                        break;
+                    case "SHELLBAG0X2F":
+                        var b2f = shellBag as ShellBag0X2F;
+
+                        break;
+                    case "SHELLBAG0X40":
+                        break;
+                    case "SHELLBAG0X61":
+
+                        break;
+                    case "SHELLBAG0X71":
+                        var b71 = shellBag as ShellBag0X71;
+                        if (b71.PropertyStore?.Sheets.Count > 0)
+                        {
+                            Log.Fatal("Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
+                        }
+
+                        break;
+                    case "SHELLBAG0X74":
+                        var b74 = shellBag as ShellBag0X74;
+
+                        if (b74.LastModificationTime.HasValue)
+                        {
+                            Log.Information(
+                                "    Modified:    {LastModificationTime}",b74.LastModificationTime.Value);
+                        }
+                        else
+                        {
+                            Log.Information($"    Modified:");
+                        }
+
+                        LogExtensionBlocks(b74.ExtensionBlocks);
+
+                        break;
+                    case "SHELLBAG0X23":
+                    case "SHELLBAG0XC3":
+                        break;
+                    case "SHELLBAGZIPCONTENTS":
+                        break;
+                    case "SHELLBAG0X4C":
+                        // SharePoint directory; the name and URL are in Value, already shown above
+                        break;
+                    case "SHELLBAGDAMAGED":
+                        var damagedItem = shellBag as ShellBagDamaged;
+                        Log.Warning("    This shell item could not be parsed: {Error}", damagedItem.ErrorMessage);
+                        break;
+                    default:
+                        Log.Warning(">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
+                        Log.Warning(">> {ShellBag}",shellBag);
+                        break;
+                }
+
+                Console.WriteLine();
+            }
+
+            Log.Information("--- End Target ID information ---");
+        }
+
+        if (neb)
+        {
+            Console.WriteLine();
+            Log.Information("(Extra blocks information suppressed. Lnk Extra block count: {Count:N0})",lnk.ExtraBlocks.Count);
+        }
+
+        if (lnk.ExtraBlocks.Count > 0 && !neb)
+        {
+            Console.WriteLine();
+            Log.Information("--- Extra blocks information ---");
+            
+            Console.WriteLine();
+
+            foreach (var extraDataBase in lnk.ExtraBlocks)
+            {
+                switch (extraDataBase.GetType().Name)
+                {
+                    case "ConsoleDataBlock":
+                        var cdb = extraDataBase as ConsoleDataBlock;
+                        Log.Information(">> Console data block");
+                        Log.Information("   Fill Attributes: {FillAttributes}",cdb.FillAttributes);
+                        Log.Information("   Popup Attributes: {PopupFillAttributes}",cdb.PopupFillAttributes);
+                        Log.Information(
+                            "   Buffer Size (Width x Height): {ScreenWidthBufferSize} x {ScreenHeightBufferSize}",cdb.ScreenWidthBufferSize,cdb.ScreenHeightBufferSize);
+                        Log.Information(
+                            "   Window Size (Width x Height): {WindowWidth} x {WindowHeight}",cdb.WindowWidth,cdb.WindowHeight);
+                        Log.Information("   Origin (X/Y): {WindowOriginX}/{WindowOriginY}",cdb.WindowOriginX,cdb.WindowOriginY);
+                        Log.Information("   Font Size: {FontSize}",cdb.FontSize);
+                        Log.Information("   Is Bold: {IsBold}",cdb.IsBold);
+                        Log.Information("   Face Name: {FaceName}",cdb.FaceName);
+                        Log.Information("   Cursor Size: {CursorSize}",cdb.CursorSize);
+                        Log.Information("   Is Full Screen: {IsFullScreen}",cdb.IsFullScreen);
+                        Log.Information("   Is Quick Edit: {IsQuickEdit}",cdb.IsQuickEdit);
+                        Log.Information("   Is Insert Mode: {IsInsertMode}",cdb.IsInsertMode);
+                        Log.Information("   Is Auto Positioned: {IsAutoPositioned}",cdb.IsAutoPositioned);
+                        Log.Information("   History Buffer Size: {HistoryBufferSize}",cdb.HistoryBufferSize);
+                        Log.Information("   History Buffer Count: {HistoryBufferCount}",cdb.HistoryBufferCount);
+                        Log.Information("   History Duplicates Allowed: {HistoryDuplicatesAllowed}",cdb.HistoryDuplicatesAllowed);
+                        Console.WriteLine();
+                        break;
+                    case "ConsoleFEDataBlock":
+                        var cfedb = extraDataBase as ConsoleFeDataBlock;
+                        Log.Information(">> Console FE data block");
+                        Log.Information("   Code page: {CodePage}",cfedb.CodePage);
+                        Console.WriteLine();
+                        break;
+                    case "DarwinDataBlock":
+                        var ddb = extraDataBase as DarwinDataBlock;
+                        Log.Information(">> Darwin data block");
+                        Log.Information("   Application ID: {ApplicationIdentifierUnicode}",ddb.ApplicationIdentifierUnicode);
+                        Log.Information("   Product code: {ProductCode}",ddb.ProductCode);
+                        Log.Information("   Feature name: {FeatureName}",ddb.FeatureName);
+                        Log.Information("   Component ID: {ComponentId}",ddb.ComponentId);
+                        Console.WriteLine();
+                        break;
+                    case "EnvironmentVariableDataBlock":
+                        var evdb = extraDataBase as EnvironmentVariableDataBlock;
+                        Log.Information(">> Environment variable data block");
+                        Log.Information("   Environment variables: {EnvironmentVariablesUnicode}",evdb.EnvironmentVariablesUnicode);
+                        Console.WriteLine();
+                        break;
+                    case "IconEnvironmentDataBlock":
+                        var iedb = extraDataBase as IconEnvironmentDataBlock;
+                        Log.Information(">> Icon environment data block");
+                        Log.Information("   Icon path: {IconPathUni}",iedb.IconPathUni);
+                        Console.WriteLine();
+                        break;
+                    case "KnownFolderDataBlock":
+                        var kfdb = extraDataBase as KnownFolderDataBlock;
+                        Log.Information(">> Known folder data block");
+                        Log.Information(
+                            "   Known folder GUID: {KnownFolderId} ==> {KnownFolderName}",kfdb.KnownFolderId,kfdb.KnownFolderName);
+                        Console.WriteLine();
+                        break;
+                    case "PropertyStoreDataBlock":
+                        var psdb = extraDataBase as PropertyStoreDataBlock;
+
+                        if (psdb.PropertyStore.Sheets.Count > 0)
+                        {
+                            Log.Information(">> Property store data block (Format: GUID\\ID Description ==> Value)");
+                            var propCount = 0;
+
+                            foreach (var prop in psdb.PropertyStore.Sheets)
+                            {
+                                foreach (var propertyName in prop.PropertyNames)
+                                {
+                                    propCount += 1;
+
+                                    var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                                    var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
+
+                                    var suffix = string.Empty;
+
+                                    if (intParsed)
+                                    {
+                                        suffix =
+                                            $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+                                                .PadRight(35);
+                                    }
+
+//                                                var suffix =
+//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
+//                                                        .PadRight(35);
+
+                                    Log.Information("   {Prefix} {Suffix} ==> {PropertyNameValue}",prefix,suffix,propertyName.Value);
+                                }
+                            }
+
+                            if (propCount == 0)
+                            {
+                                Log.Warning("   (Property store is empty)");
+                            }
+                        }
+
+                        Console.WriteLine();
+                        break;
+                    case "ShimDataBlock":
+                        var sdb = extraDataBase as ShimDataBlock;
+                        Log.Information(">> Shimcache data block");
+                        Log.Information("   Layer name: {LayerName}",sdb.LayerName);
+                        Console.WriteLine();
+                        break;
+                    case "SpecialFolderDataBlock":
+                        var sfdb = extraDataBase as SpecialFolderDataBlock;
+                        Log.Information(">> Special folder data block");
+                        Log.Information("   Special Folder ID: {SpecialFolderId}",sfdb.SpecialFolderId);
+                        Console.WriteLine();
+                        break;
+                    case "TrackerDataBaseBlock":
+                        var tdb = extraDataBase as TrackerDataBaseBlock;
+                        Log.Information(">> Tracker database block");
+                        Log.Information("   Machine ID:  {MachineId}",tdb.MachineId);
+                        if (IsTimeBasedGuid(tdb.FileDroid))
+                        {
+                            Log.Information("   MAC Address: {MacAddress}",tdb.MacAddress);
+                            Log.Information("   MAC Vendor:  {Address}",GetVendorFromMac(tdb.MacAddress));
+                            Log.Information("   Creation:    {Date}",tdb.CreationTime);
+                        }
+                        else
+                        {
+                            Log.Information("   MAC Address / Creation: (File Droid is not a time-based UUID)");
+                        }
+                        Console.WriteLine();
+                        Log.Information("   Volume Droid:       {VolumeDroid}",tdb.VolumeDroid);
+                        Log.Information("   Volume Droid Birth: {VolumeDroidBirth}",tdb.VolumeDroidBirth);
+                        Log.Information("   File Droid:         {FileDroid}",tdb.FileDroid);
+                        Log.Information("   File Droid birth:   {FileDroidBirth}",tdb.FileDroidBirth);
+                        Console.WriteLine();
+                        break;
+                    case "VistaAndAboveIdListDataBlock":
+                        var vdb = extraDataBase as VistaAndAboveIdListDataBlock;
+                        Log.Information(">> Vista and above ID List data block");
+
+                        foreach (var shellBag in vdb.TargetIDs)
+                        {
+                            var val = shellBag.Value.IsNullOrEmpty() ? "(None)" : shellBag.Value;
+                            Log.Information("   {FriendlyName} ==> {Val}", shellBag.FriendlyName, val);
+                        }
+
+                        Console.WriteLine();
+                        break;
+                    case "DamagedDataBlock":
+                        var dmg = extraDataBase as DamagedDataBlock;
+                        Log.Information("Damaged data block");
+                        Log.Information("   Original Signature: {OriginalSignature}",dmg.OriginalSignature);
+                        Log.Information("   Error Message: {ErrorMessage}",dmg.ErrorMessage);
+
+                        break;
+                }
+            }
+        }
+
+        var anomalies = GetAnomalies(lnk).ToList();
+        if (anomalies.Count > 0)
+        {
+            Console.WriteLine();
+            Log.Warning("--- Parse problems and anomalies ---");
+            foreach (var anomaly in anomalies)
+            {
+                Log.Warning("  {Anomaly}", anomaly);
+            }
+        }
+    }
+
+    private static void LogExtensionBlocks(List<IExtensionBlock> extensionBlocks)
+    {
+        if (extensionBlocks == null || extensionBlocks.Count == 0)
+        {
+            return;
+        }
+
+        Log.Information("    Extension block count: {Count:N0}",extensionBlocks.Count);
+        Console.WriteLine();
+
+        var extensionNumber = 0;
+        foreach (var extensionBlock in extensionBlocks)
+        {
+            Log.Information("    --------- Block {ExtensionNumber:N0} ({Name}) ---------",extensionNumber,extensionBlock.GetType().Name);
+
+            switch (extensionBlock)
+            {
+                case Beef0004 b4:
+                    Log.Information("    Long name: {LongName}",b4.LongName);
+                    if (b4.LocalisedName?.Length > 0)
+                    {
+                        Log.Information("    Localized name: {LocalisedName}",b4.LocalisedName);
+                    }
+
+                    if (b4.CreatedOnTime.HasValue)
+                    {
+                        Log.Information("    Created:     {CreatedOnTime}",b4.CreatedOnTime.Value);
+                    }
+                    else
+                    {
+                        Log.Information("    Created:");
+                    }
+
+                    if (b4.LastAccessTime.HasValue)
+                    {
+                        Log.Information("    Last access: {LastAccessTime}",b4.LastAccessTime.Value);
+                    }
+                    else
+                    {
+                        Log.Information("    Last access: ");
+                    }
+
+                    if (b4.MFTInformation.MFTEntryNumber > 0)
+                    {
+                        Log.Information(
+                            "    MFT entry/sequence #: {MftEntryNumber}/{MftSequenceNumber} (0x{MftEntryNumber2:X}/0x{MftSequenceNumber2:X})",b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber,b4.MFTInformation.MFTEntryNumber,b4.MFTInformation.MFTSequenceNumber);
+                    }
+
+                    break;
+                case Beef0025 b25:
+                    // FileTime1/FileTime2 are nullable; .Value used to throw and fail the whole file
+                    Log.Information("    Filetime 1: {FileTime1}, Filetime 2: {FileTime2}",
+                        b25.FileTime1.HasValue ? (object) b25.FileTime1.Value : string.Empty,
+                        b25.FileTime2.HasValue ? (object) b25.FileTime2.Value : string.Empty);
+                    break;
+                case Beef0003 b3:
+                    Log.Information("    GUID: {Guid1} ({Guid1Folder})",b3.GUID1,b3.GUID1Folder);
+                    break;
+                case Beef001a b1a:
+                    Log.Information("    File document type: {FileDocumentTypeString}",b1a.FileDocumentTypeString);
+                    break;
+                default:
+                    Log.Information("    {ExtensionBlock}",extensionBlock);
+                    break;
+            }
+
+            extensionNumber += 1;
+        }
+    }
+
+    /// <summary>
+    ///     1601-01-01 means "not set"; DateTimeOffset.MinValue is what Lnk returns for an out-of-range FILETIME
+    ///     (the raw value is reported in the anomalies).
+    /// </summary>
+    private static bool IsUnsetTimestamp(DateTimeOffset value) => value.Year <= 1601;
+
+    private static string FormatTimestamp(DateTimeOffset value, string format) =>
+        IsUnsetTimestamp(value) ? string.Empty : value.ToString(format);
+
+    private static DateTimeOffset? ToNullableTimestamp(DateTimeOffset value) =>
+        IsUnsetTimestamp(value) ? null : value;
+
+    /// <summary>
+    ///     Only version 1 (time-based) UUIDs carry a timestamp and a MAC address.
+    /// </summary>
+    private static bool IsTimeBasedGuid(Guid guid) => (guid.ToByteArray()[7] >> 4) == 1;
+
+    private static IEnumerable<string> GetAnomalies(LnkFile lnk)
+    {
+        // Parse problems, data appended after the terminal block, out-of-range timestamps, damaged items/blocks
+        foreach (var error in lnk.ParseErrors)
+        {
+            yield return error;
+        }
+
+        var args = lnk.Arguments;
+        if (string.IsNullOrEmpty(args))
+        {
+            yield break;
+        }
+
+        // Padding Arguments past what the shortcut properties dialog shows is a known way of hiding a payload
+        if (args.Length > 260)
+        {
+            yield return $"Arguments are {args.Length:N0} characters long (the shortcut properties dialog shows 260)";
+        }
+
+        var longestRun = 0;
+        var run = 0;
+        foreach (var c in args)
+        {
+            run = char.IsWhiteSpace(c) ? run + 1 : 0;
+            longestRun = Math.Max(longestRun, run);
+        }
+
+        if (longestRun >= 32)
+        {
+            yield return $"Arguments contain {longestRun:N0} consecutive whitespace characters";
+        }
     }
 
     private class CustomHelpAction : SynchronousCommandLineAction
@@ -1728,6 +1767,17 @@ public sealed class CsvOut
     public string MACVendor { get; set; }
     public string TrackerCreatedOn { get; set; }
     public string ExtraBlocksPresent { get; set; }
+
+    // Added after the original columns so existing Timeline Explorer layouts and scripts keep working
+    public string Name { get; set; }
+    public string IconLocation { get; set; }
+    public string ShowWindow { get; set; }
+    public string EnvironmentVariables { get; set; }
+    public string VolumeDroid { get; set; }
+    public string FileDroid { get; set; }
+    public string VolumeDroidBirth { get; set; }
+    public string FileDroidBirth { get; set; }
+    public string Anomalies { get; set; }
 }
 
 internal class ApplicationArguments

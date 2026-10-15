@@ -8,7 +8,7 @@
     <Product>LECmd</Product>
     <Description>Lnk Explorer Command line edition</Description>
     <Copyright>Eric Zimmerman</Copyright>
-    <Version>2026.5.0</Version>
+    <Version>2026.10.0</Version>
     <TargetFrameworks>net472;net10.0</TargetFrameworks>
     <Title>LECmd</Title>
     <IsPackable>false</IsPackable>
@@ -19,8 +19,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AlphaFS.New" Version="2.3.0" />  
-    <PackageReference Include="GuidMapping" Version="2026.5.0" />  
-    <PackageReference Include="System.CommandLine" Version="2.0.8" />
+    <PackageReference Include="GuidMapping" Version="2026.10.1" />  
+    <PackageReference Include="System.CommandLine" Version="2.0.13" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
@@ -36,7 +36,7 @@
     <None Include="Resources\MACs.txt" />
   </ItemGroup>
   <ItemGroup> 
-    <PackageReference Include="Costura.Fody" Version="6.1.0">
+    <PackageReference Include="Costura.Fody" Version="6.2.0">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Fody" Version="6.9.3">
@@ -45,11 +45,11 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
-    <PackageReference Include="Exceptionless" Version="6.1.0" />
-    <PackageReference Include="ExtensionBlocks" Version="2026.5.0" />
-    <PackageReference Include="Lnk" Version="2026.10.0" />
-    <PackageReference Include="Serilog" Version="4.3.1" />
+    <PackageReference Include="Exceptionless" Version="6.2.0" />
+    <PackageReference Include="ExtensionBlocks" Version="2026.10.0" />
+    <PackageReference Include="Lnk" Version="2026.10.1" />
+    <PackageReference Include="Serilog" Version="4.4.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
-    <PackageReference Include="ServiceStack.Text" Version="10.0.6" />
+    <PackageReference Include="ServiceStack.Text" Version="10.4.0" />
   </ItemGroup>
 </Project>

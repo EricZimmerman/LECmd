@@ -973,9 +973,10 @@ internal class Program
     {
         var attribute = value.GetType()
             .GetField(value.ToString())
-            .GetCustomAttributes(typeof(DescriptionAttribute), false)
+            ?.GetCustomAttributes(typeof(DescriptionAttribute), false)
             .SingleOrDefault() as DescriptionAttribute;
-        return attribute?.Description;
+        // Undefined values (e.g. ShowCommand 0x0D in LECmd#12) have no field, so fall back to the raw value
+        return attribute == null ? value.ToString() : attribute.Description;
     }
 
     private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)

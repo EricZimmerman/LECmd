@@ -34,6 +34,8 @@ using ExtensionBlocks;
 using Lnk;
 using Lnk.ExtraData;
 using Lnk.ShellItems;
+//ExtensionBlocks has shell item classes of these names too (since 2026.10.1); these are Lnk's
+using ShellBag0X00 = Lnk.ShellItems.ShellBag0X00; using ShellBag0X01 = Lnk.ShellItems.ShellBag0X01; using ShellBag0X1F = Lnk.ShellItems.ShellBag0X1F; using ShellBag0X2F = Lnk.ShellItems.ShellBag0X2F; using ShellBag0X32 = Lnk.ShellItems.ShellBag0X32; using ShellBag0X71 = Lnk.ShellItems.ShellBag0X71; using ShellBag0X74 = Lnk.ShellItems.ShellBag0X74;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;

@@ -47,4 +47,5 @@ When you change file handling, keep the two branches behaving the same way, and 
 
 - Unlike the library repos (Lnk, ExtensionBlocks, GuidMapping), which use MinVer and publish to NuGet from a GitHub release, LECmd is not packable. Its version is the `<Version>` in `LECmd/LECmd.csproj` (calendar style, e.g. `2026.10.0`), bumped by hand for each release. The banner shows it.
 - The dependency order is GuidMapping → ExtensionBlocks → Lnk → LECmd. LECmd references all three directly, so keep them in step with the versions Lnk uses.
+- Since ExtensionBlocks 2026.10.1 that package also has shell item classes named as Lnk's (`ShellBag0X1F`, ...). `Program.cs` imports both namespaces, so the Lnk ones it uses have `using` aliases; add one when a new `ShellBag0X..` from Lnk is used.
 - Dependabot (`.github/dependabot.yml`) opens monthly PRs for GitHub Actions and NuGet updates.

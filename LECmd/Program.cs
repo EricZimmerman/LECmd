@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Help;
@@ -34,8 +34,6 @@ using ExtensionBlocks;
 using Lnk;
 using Lnk.ExtraData;
 using Lnk.ShellItems;
-//ExtensionBlocks has shell item classes of these names too (since 2026.10.1); these are Lnk's
-using ShellBag0X00 = Lnk.ShellItems.ShellBag0X00; using ShellBag0X01 = Lnk.ShellItems.ShellBag0X01; using ShellBag0X1F = Lnk.ShellItems.ShellBag0X1F; using ShellBag0X2F = Lnk.ShellItems.ShellBag0X2F; using ShellBag0X32 = Lnk.ShellItems.ShellBag0X32; using ShellBag0X71 = Lnk.ShellItems.ShellBag0X71; using ShellBag0X74 = Lnk.ShellItems.ShellBag0X74;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -43,7 +41,6 @@ using ServiceStack;
 using ServiceStack.Text;
 using CsvWriter = CsvHelper.CsvWriter;
 using Resources = LECmd.Properties.Resources;
-using ShellBag = Lnk.ShellItems.ShellBag;
 using VolumeInfo = Lnk.VolumeInfo;
 
 namespace LECmd;
@@ -934,9 +931,10 @@ internal class Program
         {
             var si = lnk.TargetIDs.Last();
 
-            if (si.ExtensionBlocks?.Count > 0)
+            var targetBlocks = TargetBlocks(si);
+            if (targetBlocks.Count > 0)
             {
-                var eb = si.ExtensionBlocks.LastOrDefault(t => t is Beef0004);
+                var eb = targetBlocks.LastOrDefault(t => t is Beef0004);
                 if (eb is Beef0004)
                 {
                     var eb4 = eb as Beef0004;
@@ -1010,7 +1008,7 @@ internal class Program
         return attribute == null ? value.ToString() : attribute.Description;
     }
 
-    private static string GetAbsolutePathFromTargetIDs(List<ShellBag> ids)
+    private static string GetAbsolutePathFromTargetIDs(List<IShellBag> ids)
     {
         var absPath = string.Empty;
 
@@ -1239,180 +1237,95 @@ internal class Program
 
                 Log.Information("  -{FriendlyName} ==> {Value}", shellBag.FriendlyName, val);
 
-                switch (shellBag.GetType().Name.ToUpper())
+                //the shell items are ExtensionBlocks' classes (shared with ShellBags Explorer, SBECmd and the RECmd plugins)
+                switch (shellBag)
                 {
-                    case "SHELLBAG0X36":
-                    case "SHELLBAG0X32":
-                        var b32 = shellBag as ShellBag0X32;
+                    case ShellBagDamaged damagedItem:
+                        Log.Warning("    This shell item could not be parsed: {Error}", damagedItem.ErrorMessage);
+                        break;
 
-                        Log.Information("    Short name: {ShortName}",b32.ShortName);
-                        if (b32.LastModificationTime.HasValue)
+                    //files and folders: 0x31 (and 0x35, 0x36, 0x39, 0xB1, which are read as one), 0x32, and 0x3A file entries
+                    case ShellBag0X31 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0X32 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0X35 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0X36 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0X39 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0XB1 b:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+                    case ShellBag0X3A b when b.ShortName != null:
+                        LogFileEntry(b.ShortName, b.LastModificationTime, b.ExtensionBlocks);
+                        break;
+
+                    //users files folder (a 0x74 item with CFSF)
+                    case ShellBagCFSF b:
+                        if (b.LastModificationTime.HasValue)
                         {
                             Log.Information(
-                                "    Modified:    {LastModificationTime}",b32.LastModificationTime.Value);
+                                "    Modified:    {LastModificationTime}",b.LastModificationTime.Value);
                         }
                         else
                         {
                             Log.Information($"    Modified:");
                         }
 
-
-                        LogExtensionBlocks(b32.ExtensionBlocks);
-
-                        break;
-                    case "SHELLBAG0X31":
-
-                        var b3x = shellBag as Lnk.ShellItems.ShellBag0X31;
-
-                        Log.Information("    Short name: {ShortName}",b3x.ShortName);
-                        if (b3x.LastModificationTime.HasValue)
-                        {
-                            Log.Information(
-                                "    Modified:    {LastModificationTime}",b3x.LastModificationTime.Value);
-                        }
-                        else
-                        {
-                            Log.Information($"    Modified:");
-                        }
-
-                        LogExtensionBlocks(b3x.ExtensionBlocks);
-
+                        LogExtensionBlocks(b.ExtensionBlocks);
                         break;
 
-                    case "SHELLBAG0X00":
-                        var b00 = shellBag as ShellBag0X00;
-
-                        if (b00.PropertyStore.Sheets.Count > 0)
+                    case ShellBag0X00 b:
+                        foreach (var store in b.PropertyStores)
                         {
-                            Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                            var propCount = 0;
-
-                            foreach (var prop in b00.PropertyStore.Sheets)
-                            {
-                                foreach (var propertyName in prop.PropertyNames)
-                                {
-                                    propCount += 1;
-
-                                    var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                    var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                    var suffix = string.Empty;
-
-                                    if (intParsed)
-                                    {
-                                        suffix =
-                                            $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, propNameAsInt)}"
-                                                .PadRight(35);
-                                    }
-
-//                                                var suffix =
-//                                                    $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-//                                                        .PadRight(35);
-
-                                    Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
-                                }
-                            }
-
-                            if (propCount == 0)
-                            {
-                                Log.Warning("     (Property store is empty)");
-                            }
+                            LogPropertyStore(store, false);
                         }
 
                         break;
-                    case "SHELLBAG0X01":
-                        var baaaa1f = shellBag as ShellBag0X01;
-                        if (baaaa1f.DriveLetter.Length > 0)
+                    case ShellBag0X1F b:
+                        LogPropertyStore(b.PropertyStore, true);
+                        break;
+                    case ShellBag0X01 b:
+                        if (b.DriveLetter?.Length > 0)
                         {
-                            Log.Information("  Drive letter: {DriveLetter}",baaaa1f.DriveLetter);
+                            Log.Information("  Drive letter: {DriveLetter}",b.DriveLetter);
                         }
 
                         break;
-                    case "SHELLBAG0X1F":
-
-                        var b1f = shellBag as ShellBag0X1F;
-
-                        if (b1f.PropertyStore.Sheets.Count > 0)
-                        {
-                            Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
-                            var propCount = 0;
-
-                            foreach (var prop in b1f.PropertyStore.Sheets)
-                            {
-                                foreach (var propertyName in prop.PropertyNames)
-                                {
-                                    propCount += 1;
-
-                                    var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
-                                    var intParsed = int.TryParse(propertyName.Key, out var propNameAsInt);
-
-                                    var suffix = string.Empty;
-
-                                    if (intParsed)
-                                    {
-                                        suffix =
-                                            $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, int.Parse(propertyName.Key))}"
-                                                .PadRight(35);
-                                    }
-
-                                    Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
-                                }
-                            }
-
-                            if (propCount == 0)
-                            {
-                                Log.Warning("     (Property store is empty)");
-                            }
-                        }
-
-                        break;
-                    case "SHELLBAG0X2E":
-                        break;
-                    case "SHELLBAG0X2F":
-                        var b2f = shellBag as ShellBag0X2F;
-
-                        break;
-                    case "SHELLBAG0X40":
-                        break;
-                    case "SHELLBAG0X61":
-
-                        break;
-                    case "SHELLBAG0X71":
-                        var b71 = shellBag as ShellBag0X71;
-                        if (b71.PropertyStore?.Sheets.Count > 0)
+                    case ShellBag0X71 b:
+                        if (b.PropertyStore?.Sheets.Count > 0)
                         {
                             Log.Fatal("Property stores found! Please email lnk file to saericzimmerman@gmail.com so support can be added!!");
                         }
 
                         break;
-                    case "SHELLBAG0X74":
-                        var b74 = shellBag as ShellBag0X74;
 
-                        if (b74.LastModificationTime.HasValue)
-                        {
-                            Log.Information(
-                                "    Modified:    {LastModificationTime}",b74.LastModificationTime.Value);
-                        }
-                        else
-                        {
-                            Log.Information($"    Modified:");
-                        }
+                    //the value above is all there is
+                    case ShellBag0X2E:
+                    case ShellBag0X2F:
+                    case ShellBag0X2A:
+                    case ShellBag0X3A:
+                    case ShellBag0X41:
+                    case ShellBag0X42:
+                    case ShellBag0X43:
+                    case ShellBag0X46:
+                    case ShellBag0X47:
+                    case ShellBag0X61:
+                    case ShellBag0X23:
+                    case ShellBag0XC3:
+                    case ShellBag0X74:
+                    case ShellBag0X79:
+                    case ShellBagZipContents:
+                    case ShellBag0X4C: // SharePoint directory; the name and URL are in Value, already shown above
+                        break;
 
-                        LogExtensionBlocks(b74.ExtensionBlocks);
-
-                        break;
-                    case "SHELLBAG0X23":
-                    case "SHELLBAG0XC3":
-                        break;
-                    case "SHELLBAGZIPCONTENTS":
-                        break;
-                    case "SHELLBAG0X4C":
-                        // SharePoint directory; the name and URL are in Value, already shown above
-                        break;
-                    case "SHELLBAGDAMAGED":
-                        var damagedItem = shellBag as ShellBagDamaged;
-                        Log.Warning("    This shell item could not be parsed: {Error}", damagedItem.ErrorMessage);
-                        break;
                     default:
                         Log.Warning(">> UNMAPPED Type! Please email lnk file to saericzimmerman@gmail.com so support can be added!");
                         Log.Warning(">> {ShellBag}",shellBag);
@@ -1609,6 +1522,66 @@ internal class Program
         }
     }
 
+    /// <summary>
+    ///     The target's extension blocks: a property view's (0x00) are those of the items in its Delegate ID List and then
+    ///     its own, so the last 0xbeef0004 is the deepest item's (as when Lnk had its own shell item classes)
+    /// </summary>
+    private static List<IExtensionBlock> TargetBlocks(IShellBag item)
+    {
+        var own = item.ExtensionBlocks ?? new List<IExtensionBlock>();
+        return item is ShellBag0X00 propertyView ? propertyView.DelegateExtensionBlocks.Concat(own).ToList() : own;
+    }
+
+    /// <summary>A file or folder item: its short name, modified time and extension blocks</summary>
+    private static void LogFileEntry(string shortName, DateTimeOffset? modified, List<IExtensionBlock> extensionBlocks)
+    {
+        Log.Information("    Short name: {ShortName}",shortName);
+        if (modified.HasValue)
+        {
+            Log.Information(
+                "    Modified:    {LastModificationTime}",modified.Value);
+        }
+        else
+        {
+            Log.Information($"    Modified:");
+        }
+
+        LogExtensionBlocks(extensionBlocks);
+    }
+
+    private static void LogPropertyStore(PropertyStore store, bool header)
+    {
+        if (store == null || store.Sheets.Count == 0)
+        {
+            return;
+        }
+
+        Log.Information("  >> Property store (Format: GUID\\ID Description ==> Value)");
+        var propCount = 0;
+
+        foreach (var prop in store.Sheets)
+        {
+            foreach (var propertyName in prop.PropertyNames)
+            {
+                propCount += 1;
+
+                var prefix = $"{prop.GUID}\\{propertyName.Key}".PadRight(43);
+                var suffix = string.Empty;
+
+                if (int.TryParse(propertyName.Key, out var propNameAsInt))
+                {
+                    suffix = $"{Utils.GetDescriptionFromGuidAndKey(prop.GUID, propNameAsInt)}".PadRight(35);
+                }
+
+                Log.Information("     {Prefix} {Suffix} ==> {PropertyName}",prefix,suffix,propertyName.Value);
+            }
+        }
+
+        if (propCount == 0)
+        {
+            Log.Warning("     (Property store is empty)");
+        }
+    }
     private static void LogExtensionBlocks(List<IExtensionBlock> extensionBlocks)
     {
         if (extensionBlocks == null || extensionBlocks.Count == 0)

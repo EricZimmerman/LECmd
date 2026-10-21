@@ -10,6 +10,8 @@ LECmd (Lnk Explorer Command line edition) is a single-project .NET console tool 
 
 The SDK is pinned in `global.json` (.NET 10).
 
+Debug info: `Directory.Build.props` sets `DebugType embedded` (the pdbs are inside the assemblies: stack traces and Exceptionless reports have file and line numbers, and no .pdb file ships) and, for Release, `ContinuousIntegrationBuild` (source paths in the pdbs are `/_/...`, not this machine's folders). Don't add `DebugType` or `DebugSymbols` to the project files.
+
 ```bash
 dotnet build -c Release                               # builds LECmd.slnx, both net472 and net10.0
 dotnet build LECmd/LECmd.csproj -f net10.0            # one target only

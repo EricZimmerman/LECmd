@@ -635,6 +635,7 @@ internal class Program
                     }
                     catch (Exception ex)
                     {
+                        exportErrors += 1;
                         Log.Error(ex,
                             "Unable to open {OutFile} for writing. CSV export canceled. Error: {Message}",outFile,ex.Message);
                     }
@@ -738,6 +739,7 @@ internal class Program
                     }
                     catch (Exception ex)
                     {
+                        exportErrors += 1;
                         Log.Error(ex,
                             "Error writing record for {SourceFile} to {Csv}. Error: {Message}",processedFile.SourceFile,csv,ex.Message);
                     }
@@ -812,7 +814,10 @@ internal class Program
 
                     if (xml?.Length > 0)
                     {
-                        SaveXml(o, xml);
+                        if (SaveXml(o, xml) == false)
+                        {
+                            exportErrors += 1;
+                        }
                     }
                 }
 
@@ -967,7 +972,7 @@ internal class Program
         return csOut;
     }
 
-    private static void SaveXml(CsvOut csout, string outDir)
+    private static bool SaveXml(CsvOut csout, string outDir)
     {
         try
         {
@@ -991,10 +996,14 @@ internal class Program
 
 
             File.WriteAllText(outFile, csout.ToXml());
+
+            return true;
         }
         catch (Exception ex)
         {
             Log.Error(ex,"Error exporting XML for {SourceFile}. Error: {Message}",csout.SourceFile,ex.Message);
+
+            return false;
         }
     }
 

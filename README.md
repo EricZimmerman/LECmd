@@ -6,7 +6,7 @@ block. Results are shown on the console and can be exported to CSV, JSON, XML an
 
 | | |
 |---|---|
-| **Version** | 2026.10.1 |
+| **Version** | 2026.10.2 |
 | **Download** | [.NET 10](https://download.ericzimmermanstools.com/net/LECmd.zip) (recommended) &middot; [.NET Framework 4.7.2](https://download.ericzimmermanstools.com/LECmd.zip) |
 | **All tools** | [ericzimmerman.github.io](https://ericzimmerman.github.io) or [Get-ZimmermanTools](https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip), which downloads them all and keeps them current |
 | **Changes** | [ChangeLog](https://ericzimmerman.github.io/changelog/) |
@@ -94,6 +94,7 @@ shortcuts damaged by a text mode copy (a CR byte before every LF, as an ASCII mo
 - One bad shortcut no longer stops an export; JSON output replaces an existing file instead of leaving old data at its
   end; relative `--html` paths work.
 - Exit code 1 when the tool fails (it was always 0). Error reports include source file and line numbers.
+- 2026.10.2: 0x2E root folder items with extension blocks after the GUID (a known folder such as Downloads) are read, and zip contents with data in bytes 4-9 (Lnk 2026.10.10, ExtensionBlocks 2026.10.8).
 
 The full list is in the [ChangeLog](https://ericzimmerman.github.io/changelog/).
 

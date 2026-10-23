@@ -466,23 +466,8 @@ internal class Program
                 // Files only (EnumerateFileSystemEntries also returned directories), skip empty files like the
                 // legacy path does, and do not recurse into junctions/symlinks, which can loop on mounted images.
                 // Reparse-point *files* (e.g. cloud placeholders) are still included.
-                var enumerationOptions = new EnumerationOptions
-                {
-                    IgnoreInaccessible = true,
-                    RecurseSubdirectories = true,
-                    AttributesToSkip = 0
-                };
-
-                var searchMask = mask;
-                files2 = new FileSystemEnumerable<string>(d,
-                    (ref FileSystemEntry entry) => entry.ToFullPath(), enumerationOptions)
-                {
-                    ShouldIncludePredicate = (ref FileSystemEntry entry) =>
-                        !entry.IsDirectory && entry.Length > 0 &&
-                        FileSystemName.MatchesSimpleExpression(searchMask, entry.FileName),
-                    ShouldRecursePredicate = (ref FileSystemEntry entry) =>
-                        (entry.Attributes & FileAttributes.ReparsePoint) == 0
-                };
+                // Folders that can't be read are reported and counted (IgnoreInaccessible skipped them silently).
+                files2 = FindLnkFiles(d, mask);
 
 #else 
 // Legacy implementation for previous frameworks
@@ -517,11 +502,11 @@ internal class Program
                         directoryEnumerationFilters.RecursionFilter =
  entryInfo => !entryInfo.IsMountPoint && !entryInfo.IsSymbolicLink;
                         
-                        directoryEnumerationFilters.ErrorFilter = (errorCode, errorMessage, pathProcessed) => true;
+                        directoryEnumerationFilters.ErrorFilter = UnreadableFolder;
                         
                         var dirEnumOptions =
                             DirectoryEnumerationOptions.Files | DirectoryEnumerationOptions.Recursive |
-                            DirectoryEnumerationOptions.SkipReparsePoints | DirectoryEnumerationOptions.ContinueOnException |
+                            DirectoryEnumerationOptions.SkipReparsePoints |
                             DirectoryEnumerationOptions.BasicSearch ;
 
                         files2 =
@@ -1054,6 +1039,93 @@ internal class Program
     {
         return ex is UnauthorizedAccessException || (ex is IOException && !(ex is EndOfStreamException));
     }
+
+#if !NET9_0_OR_GREATER
+    /// <summary>
+    ///     AlphaFS ErrorFilter: a folder that can't be read is reported and counted as a read error (exit 1 at the end), and
+    ///     the search goes on (it was skipped silently).
+    ///     The options leave out ContinueOnException: with it, AlphaFS never calls ErrorFilter
+    /// </summary>
+    private static bool UnreadableFolder(int errorCode, string errorMessage, string pathProcessed)
+    {
+        Log.Error("Unable to read folder {Folder}: {Reason}", pathProcessed, errorMessage);
+        _readErrors++;
+        return true;
+    }
+#else
+    /// <summary>
+    ///     Files under a folder, recursively, matching a mask (case-insensitive): files only, empty files skipped, and no
+    ///     recursion into junctions/symlinks (they can loop on mounted images); reparse-point files (cloud placeholders) are
+    ///     still included. Folders that can't be read are skipped and kept in Unreadable (IgnoreInaccessible skipped them
+    ///     silently)
+    /// </summary>
+    private sealed class LnkFinder : FileSystemEnumerator<string>
+    {
+        private readonly string _mask;
+
+        //the subfolder whose handle is opened right after ShouldRecurseIntoEntry; an error then is about that folder
+        private string _lastRecursed;
+
+        //folder (null: the folder searched, as the base constructor can report it before this one runs) and reason
+        public readonly List<(string Folder, string Reason)> Unreadable = new();
+
+        public LnkFinder(string directory, string mask) : base(directory,
+            new EnumerationOptions { IgnoreInaccessible = false, RecurseSubdirectories = true, AttributesToSkip = 0 })
+        {
+            _mask = mask;
+        }
+
+        protected override bool ShouldRecurseIntoEntry(ref FileSystemEntry entry)
+        {
+            if ((entry.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                return false;
+            }
+
+            _lastRecursed = entry.ToFullPath();
+            return true;
+        }
+
+        protected override bool ShouldIncludeEntry(ref FileSystemEntry entry)
+        {
+            _lastRecursed = null;
+            return !entry.IsDirectory && entry.Length > 0 && FileSystemName.MatchesSimpleExpression(_mask, entry.FileName);
+        }
+
+        protected override string TransformEntry(ref FileSystemEntry entry)
+        {
+            return entry.ToFullPath();
+        }
+
+        protected override bool ContinueOnError(int error)
+        {
+            Unreadable.Add((_lastRecursed, new Win32Exception(error).Message));
+            _lastRecursed = null;
+            return true;
+        }
+    }
+
+    /// <summary>
+    ///     The lnk files found; each folder that can't be read is reported and counted as a read error (exit 1 at the end)
+    /// </summary>
+    private static List<string> FindLnkFiles(string directory, string mask)
+    {
+        using var finder = new LnkFinder(directory, mask);
+        var files = new List<string>();
+        while (finder.MoveNext())
+        {
+            files.Add(finder.Current);
+        }
+
+        foreach (var (folder, reason) in finder.Unreadable)
+        {
+            Log.Error("Unable to read folder {Folder}: {Reason}", folder ?? directory, reason);
+            _readErrors++;
+        }
+
+        return files;
+    }
+#endif
 
     private static LnkFile ProcessFile(string lnkFile, bool quiet, bool removableOnly, string datetimeFormat, bool nid,
         bool neb, int codepage=1252)

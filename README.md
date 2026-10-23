@@ -9,7 +9,7 @@ block. Results are shown on the console and can be exported to CSV, JSON, XML an
 | **Version** | 2026.10.1 |
 | **Download** | [.NET 10](https://download.ericzimmermanstools.com/net/LECmd.zip) (recommended) &middot; [.NET Framework 4.7.2](https://download.ericzimmermanstools.com/LECmd.zip) |
 | **All tools** | [ericzimmerman.github.io](https://ericzimmerman.github.io) or [Get-ZimmermanTools](https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip), which downloads them all and keeps them current |
-| **Changes** | [ChangeLog.txt](https://download.ericzimmermanstools.com/ChangeLog.txt) |
+| **Changes** | [ChangeLog](https://ericzimmerman.github.io/changelog/) |
 | **Issues** | [EricZimmerman/LECmd](https://github.com/EricZimmerman/LECmd/issues) or [EricZimmerman/Issues](https://github.com/EricZimmerman/Issues/issues) |
 
 ## Requirements
@@ -95,7 +95,7 @@ shortcuts damaged by a text mode copy (a CR byte before every LF, as an ASCII mo
   end; relative `--html` paths work.
 - Exit code 1 when the tool fails (it was always 0). Error reports include source file and line numbers.
 
-The full list is in the [ChangeLog](https://download.ericzimmermanstools.com/ChangeLog.txt).
+The full list is in the [ChangeLog](https://ericzimmerman.github.io/changelog/).
 
 ## Building
 

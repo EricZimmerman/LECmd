@@ -19,7 +19,7 @@ dotnet run --project LECmd -f net10.0 -- -f path/to/file.lnk
 dotnet run --project LECmd -f net10.0 -- -d path/to/dir --csv out --json out --xml out/xml --html out -q
 ```
 
-There is no test project or lint config. CI (`.github/workflows/build.yml`) only builds both targets. To verify a change, run the old and new binaries over a corpus of LNK files, such as `../lnk/ITA_LNKs` and `../lnk/Lnk.Test/TestFiles` if the Lnk repo is checked out next to this one, and diff the CSV and JSON output. Some files in TestFiles are deliberately malformed, so a run over that folder exits with 1. Exit code 0 means success. Exit code 1 means invalid arguments, a fatal error, a file that failed to parse, or a failed export.
+There is no test project or lint config. CI (`.github/workflows/build.yml`) only builds both targets. To verify a change, run the old and new binaries over a corpus of LNK files, such as `../lnk/ITA_LNKs` and `../lnk/Lnk.Test/TestFiles` if the Lnk repo is checked out next to this one, and diff the CSV and JSON output. Some files in TestFiles are deliberately malformed: they are listed under Failed files, and the run still exits 0. Exit codes are 0 or 1 only: 1 is a failure of the tool (invalid arguments, a missing `-f`/`-d`, a file it can't open or read (`_readErrors`: access denied, locked, IO errors), a failed export, or a fatal error); damaged lnk files exit 0.
 
 ## Architecture
 

@@ -70,6 +70,9 @@ internal class Program
 
     private static List<string> _failedFiles;
 
+    //files that could not be opened or read (a damaged file is only listed in _failedFiles)
+    private static int _readErrors;
+
     private static readonly Dictionary<string, string> MacList = new Dictionary<string, string>();
 
     private static List<LnkFile> _processedFiles;
@@ -409,6 +412,7 @@ internal class Program
         _processedFiles = new List<LnkFile>();
 
         _failedFiles = new List<string>();
+        _readErrors = 0;
 
         var tsNow = DateTimeOffset.UtcNow;
 
@@ -843,7 +847,8 @@ internal class Program
             }
         }
 
-        return _failedFiles.Count > 0 || exportErrors > 0 ? 1 : 0;
+        //damaged files are listed under Failed files but are not a failure of the run
+        return _readErrors > 0 || exportErrors > 0 ? 1 : 0;
     }
 
 
@@ -1041,6 +1046,15 @@ internal class Program
         return absPath.Length > 0 ? absPath.Substring(0, absPath.Length - 1) : absPath;
     }
 
+    /// <summary>
+    ///     True when a file could not be opened or read (access denied, locked, an IO error), as opposed to a file that was
+    ///     read but is damaged
+    /// </summary>
+    private static bool IsReadError(Exception ex)
+    {
+        return ex is UnauthorizedAccessException || (ex is IOException && !(ex is EndOfStreamException));
+    }
+
     private static LnkFile ProcessFile(string lnkFile, bool quiet, bool removableOnly, string datetimeFormat, bool nid,
         bool neb, int codepage=1252)
     {
@@ -1066,6 +1080,12 @@ internal class Program
             _failedFiles.Add($"{lnkFile.Replace("\\\\?\\", "")} ==> ({ex.Message}){where}");
             Log.Error(ex,"Error opening {LnkFile}. Message: {Message}{Where}",lnkFile,ex.Message,where);
             Console.WriteLine();
+
+            if (IsReadError(ex))
+            {
+                _readErrors++;
+            }
+
             return null;
         }
 

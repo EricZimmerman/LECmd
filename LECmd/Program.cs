@@ -266,8 +266,8 @@ internal class Program
             };
             var coOpt = new Option<bool>("--co")
             {
-                Description = "Save all console messages to <timestamp>_LECmd_<version>_ConsoleLog.txt in the output directory (the first of --csv, --json, --xml, --html given)",
-                DefaultValueFactory = _ => false
+                Description = "When true, save all console messages to <timestamp>_LECmd_<version>_ConsoleLog.txt in the output directory (the first of --csv, --json, --xml, --html given). Use --co false to turn it off",
+                DefaultValueFactory = _ => true
             };
 
         _rootCommand = new RootCommand
@@ -420,11 +420,6 @@ internal class Program
         if (consoleLog != null)
         {
             Log.Information("Console log: {Path}", consoleLog);
-            Console.WriteLine();
-        }
-        else if (co)
-        {
-            Log.Warning("--co: no output directory was given, so the console messages are not saved");
             Console.WriteLine();
         }
 
@@ -827,7 +822,7 @@ internal class Program
 
                     if (xml?.Length > 0)
                     {
-                        if (SaveXml(o, xml) == false)
+                        if (SaveXml(o, xml, tsNow) == false)
                         {
                             exportErrors += 1;
                         }
@@ -986,7 +981,7 @@ internal class Program
         return csOut;
     }
 
-    private static bool SaveXml(CsvOut csout, string outDir)
+    private static bool SaveXml(CsvOut csout, string outDir, DateTimeOffset tsNow)
     {
         try
         {
@@ -1005,7 +1000,7 @@ internal class Program
             }
 
             var outName =
-                $"{DateTimeOffset.UtcNow:yyyyMMddHHmmss}_{Path.GetFileName(csout.SourceFile)}_{pathHash}.xml";
+                $"{tsNow:yyyyMMddHHmmss}_{Path.GetFileName(csout.SourceFile)}_{pathHash}.xml";
             var outFile = Path.Combine(outDir, outName);
 
 

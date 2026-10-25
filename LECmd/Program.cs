@@ -264,6 +264,11 @@ internal class Program
                 Description = "Show trace information during processing",
                 DefaultValueFactory = _ => false
             };
+            var coOpt = new Option<bool>("--co")
+            {
+                Description = "Save all console messages to <timestamp>_LECmd_<version>_ConsoleLog.txt in the output directory (the first of --csv, --json, --xml, --html given)",
+                DefaultValueFactory = _ => false
+            };
 
         _rootCommand = new RootCommand
         {
@@ -284,14 +289,15 @@ internal class Program
             mpOpt,
             cpOpt,
             debugOpt,
-            traceOpt
+            traceOpt,
+            coOpt
         };
 
         _rootCommand.Description = Header + "\r\n\r\n" + Footer;
 
         _rootCommand.SetAction(result => DoWork(result.GetValue(fOpt), result.GetValue(dOpt), result.GetValue(rOpt),
             result.GetValue(qOpt), result.GetValue(allOpt), result.GetValue(csvOpt), result.GetValue(csvfOpt),
-            result.GetValue(xmlOpt),result.GetValue(htmlOpt),result.GetValue(jsonOpt),result.GetValue(prettyOpt),result.GetValue(nidOpt),result.GetValue(nebOpt),result.GetValue(dtOpt),result.GetValue(mpOpt),result.GetValue(debugOpt),result.GetValue(traceOpt),result.GetValue(cpOpt)));
+            result.GetValue(xmlOpt),result.GetValue(htmlOpt),result.GetValue(jsonOpt),result.GetValue(prettyOpt),result.GetValue(nidOpt),result.GetValue(nebOpt),result.GetValue(dtOpt),result.GetValue(mpOpt),result.GetValue(debugOpt),result.GetValue(traceOpt),result.GetValue(cpOpt),result.GetValue(coOpt)));
 
 
         // Exit code: 0 = success, 1 = bad arguments, a fatal error, or one or more files that could not be parsed.
@@ -320,8 +326,9 @@ internal class Program
         {
             if (arg is DateTimeOffset)
             {
+                //an explicit format (the log templates' {Timestamp:HH:mm:ss.fff}) wins over --dt
                 var size = (DateTimeOffset) arg;
-                return size.ToString(_activeDateTimeFormat);
+                return size.ToString(string.IsNullOrEmpty(format) ? _activeDateTimeFormat : format);
             }
 
             var formattable = arg as IFormattable;
@@ -335,7 +342,7 @@ internal class Program
     }
 
     private static int DoWork(string f, string d, bool r, bool q, bool all, string csv, string csvf, string xml,
-        string html, string json, bool pretty, bool nid, bool neb, string dt, bool mp, bool debug, bool trace, int cp)
+        string html, string json, bool pretty, bool nid, bool neb, string dt, bool mp, bool debug, bool trace, int cp, bool co)
     {
         _activeDateTimeFormat = dt;
         if (mp)
@@ -365,6 +372,14 @@ internal class Program
         var conf = new LoggerConfiguration()
             .WriteTo.Console(outputTemplate: template, formatProvider: formatter)
             .MinimumLevel.ControlledBy(levelSwitch);
+
+        var tsNow = DateTimeOffset.UtcNow;
+
+        var consoleLog = co ? ConsoleLog.GetPath(tsNow, csv, json, xml, html) : null;
+        if (consoleLog != null)
+        {
+            conf.WriteTo.File(consoleLog, outputTemplate: ConsoleLog.Template, formatProvider: formatter);
+        }
 
         Log.Logger = conf.CreateLogger();
 
@@ -402,6 +417,17 @@ internal class Program
         Log.Information("Command line: {Args}",string.Join(" ", Environment.GetCommandLineArgs().Skip(1)));
         Console.WriteLine();
 
+        if (consoleLog != null)
+        {
+            Log.Information("Console log: {Path}", consoleLog);
+            Console.WriteLine();
+        }
+        else if (co)
+        {
+            Log.Warning("--co: no output directory was given, so the console messages are not saved");
+            Console.WriteLine();
+        }
+
         if (IsAdministrator() == false)
         {
             Log.Warning($"Warning: Administrator privileges not found!");
@@ -413,8 +439,6 @@ internal class Program
 
         _failedFiles = new List<string>();
         _readErrors = 0;
-
-        var tsNow = DateTimeOffset.UtcNow;
 
         if (f?.Length > 0)
         {

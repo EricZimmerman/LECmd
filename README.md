@@ -6,7 +6,7 @@ block. Results are shown on the console and can be exported to CSV, JSON, XML an
 
 | | |
 |---|---|
-| **Version** | 2026.10.2 |
+| **Version** | 2026.10.3 |
 | **Download** | [.NET 10](https://download.ericzimmermanstools.com/net/LECmd.zip) (recommended) &middot; [.NET Framework 4.7.2](https://download.ericzimmermanstools.com/LECmd.zip) |
 | **All tools** | [ericzimmerman.github.io](https://ericzimmerman.github.io) or [Get-ZimmermanTools](https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip), which downloads them all and keeps them current |
 | **Changes** | [ChangeLog](https://ericzimmerman.github.io/changelog/) |
@@ -43,6 +43,7 @@ Options:
   --cp <cp>       Code page to parse strings [default: 1252]
   --debug         Show debug information during processing
   --trace         Show trace information during processing
+  --co            Save all console messages to <timestamp>_LECmd_<version>_ConsoleLog.txt in the output directory (the first of --csv, --json, --xml, --html given)
   -?, -h, --help  Show help and usage information
   --version       Show version information
 ```
@@ -95,6 +96,7 @@ shortcuts damaged by a text mode copy (a CR byte before every LF, as an ASCII mo
   end; relative `--html` paths work.
 - Exit code 1 when the tool fails (it was always 0). Error reports include source file and line numbers.
 - 2026.10.2: 0x2E root folder items with extension blocks after the GUID (a known folder such as Downloads) are read, and zip contents with data in bytes 4-9 (Lnk 2026.10.10, ExtensionBlocks 2026.10.8).
+- 2026.10.3: `--co` saves all console messages to `<yyyyMMddHHmmss>_LECmd_<version>_ConsoleLog.txt` in the output directory (the first of `--csv`, `--json`, `--xml`, `--html` given). `--debug` and `--trace` show the time of each message again (they showed the `--dt` date).
 
 The full list is in the [ChangeLog](https://ericzimmerman.github.io/changelog/).
 

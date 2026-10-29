@@ -6,7 +6,7 @@ block. Results are shown on the console and can be exported to CSV, JSON, XML an
 
 | | |
 |---|---|
-| **Version** | 2026.10.3 |
+| **Version** | 2026.10.4 |
 | **Download** | [.NET 10](https://download.ericzimmermanstools.com/net/LECmd.zip) (recommended) &middot; [.NET Framework 4.7.2](https://download.ericzimmermanstools.com/LECmd.zip) |
 | **All tools** | [ericzimmerman.github.io](https://ericzimmerman.github.io) or [Get-ZimmermanTools](https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip), which downloads them all and keeps them current |
 | **Changes** | [ChangeLog](https://ericzimmerman.github.io/changelog/) |
@@ -85,6 +85,7 @@ shortcuts damaged by a text mode copy (a CR byte before every LF, as an ASCII mo
 
 ## What's new in 2026.10
 
+- 2026.10.4: FTP folders and files, find data items (OneDrive folders), URI items that end with their scheme and 0x78/0x79 property views that end with their GUIDs are read in target ID lists (Lnk 2026.10.11, ExtensionBlocks 2026.10.9).
 - About 27% faster with less memory.
 - New columns in every export: `Name`, `IconLocation`, `ShowWindow`, `EnvironmentVariables`, the tracker droids and
   `Anomalies`.

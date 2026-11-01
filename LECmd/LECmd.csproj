@@ -44,7 +44,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CsvHelper" Version="33.1.0" />
+    <PackageReference Include="CsvHelper" Version="34.0.0" />
     <PackageReference Include="Exceptionless" Version="6.2.0" />
     
     <PackageReference Include="ExtensionBlocks" Version="2026.10.9" />

@@ -8,7 +8,7 @@
     <Product>LECmd</Product>
     <Description>Lnk Explorer Command line edition</Description>
     <Copyright>Eric R. Zimmerman 2027</Copyright>
-    <Version>2026.10.4</Version>
+    <Version>2026.11.0</Version>
     <TargetFrameworks>net472;net10.0</TargetFrameworks>
     <Title>LECmd</Title>
     <IsPackable>false</IsPackable>

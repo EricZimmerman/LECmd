@@ -6,7 +6,7 @@ block. Results are shown on the console and can be exported to CSV, JSON, XML an
 
 | | |
 |---|---|
-| **Version** | 2026.10.4 |
+| **Version** | 2026.11.0 |
 | **Download** | [.NET 10](https://download.ericzimmermanstools.com/net/LECmd.zip) (recommended) &middot; [.NET Framework 4.7.2](https://download.ericzimmermanstools.com/LECmd.zip) |
 | **All tools** | [ericzimmerman.github.io](https://ericzimmerman.github.io) or [Get-ZimmermanTools](https://download.ericzimmermanstools.com/Get-ZimmermanTools.zip), which downloads them all and keeps them current |
 | **Changes** | [ChangeLog](https://ericzimmerman.github.io/changelog/) |
@@ -82,6 +82,10 @@ shortcuts damaged by a text mode copy (a CR byte before every LF, as an ASCII mo
 |---|---|
 | `0` | Success. Damaged shortcuts are reported but are not a failure |
 | `1` | The tool failed: invalid arguments, a missing `-f` or `-d` path, output that can't be written, or files or folders it can't read. Folders under `-d` that can't be read are reported (`Unable to read folder <path>: <reason>`) and the rest is still processed |
+
+## What's new in 2026.11
+
+- Moved to CsvHelper 34, a rewrite of the CSV library; the CSV output is byte for byte the same as 2026.10's.
 
 ## What's new in 2026.10
 

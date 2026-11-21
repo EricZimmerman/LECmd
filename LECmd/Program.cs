@@ -39,6 +39,7 @@ using Serilog.Core;
 using Serilog.Events;
 using ServiceStack;
 using ServiceStack.Text;
+using CsvHelper;
 using CsvWriter = CsvHelper.CsvWriter;
 using Resources = LECmd.Properties.Resources;
 using VolumeInfo = Lnk.VolumeInfo;
@@ -47,6 +48,15 @@ namespace LECmd;
 
 internal class Program
 {
+    //CsvHelper 34 options that keep CsvHelper 33's output (True/False, fields with leading or trailing spaces quoted)
+    private static readonly CsvWriterOptions CsvOptions = new()
+    {
+        //33 quoted text that starts or ends with a space (not a tab, as CsvQuoting.WhenNeededOrWhitespace does)
+        ShouldQuote = (field, fieldType, fieldIndex, recordIndex) => field.Length > 0 && (field[0] == ' ' || field[field.Length - 1] == ' '),
+        TrueValue = "True",
+        FalseValue = "False"
+    };
+
     private static readonly string PreciseTimeFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
 
     private static string _activeDateTimeFormat;
@@ -609,7 +619,6 @@ internal class Program
             try
             {
                 CsvWriter csvWriter = null;
-                StreamWriter sw = null;
 
                 if (csv?.Length > 0)
                 {
@@ -635,11 +644,9 @@ internal class Program
 
                     try
                     {
-                        sw = new StreamWriter(outFile);
-                        csvWriter = new CsvWriter(sw, CultureInfo.InvariantCulture);
+                        csvWriter = CsvWriter.ToFile(outFile, CsvOptions);
 
-                        csvWriter.WriteHeader(typeof(CsvOut));
-                        csvWriter.NextRecord();
+                        csvWriter.WriteHeader<CsvOut>();
                     }
                     catch (Exception ex)
                     {
@@ -743,7 +750,6 @@ internal class Program
                     try
                     {
                         csvWriter?.WriteRecord(o);
-                        csvWriter?.NextRecord();
                     }
                     catch (Exception ex)
                     {
@@ -831,8 +837,7 @@ internal class Program
 
 
                 //Close CSV stuff
-                sw?.Flush();
-                sw?.Close();
+                csvWriter?.Dispose();
 
                 //close json
                 jsonOut?.Flush();
@@ -1863,7 +1868,8 @@ internal class Program
     private static readonly string BaseDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 }
 
-public sealed class CsvOut
+[CsvRecord]
+public sealed partial class CsvOut
 {
     public string SourceFile { get; set; }
     public string SourceCreated { get; set; }
